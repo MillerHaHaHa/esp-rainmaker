@@ -1,0 +1,11 @@
+{
+    "idf.adapterTargetName": "esp32c3",
+    "idf.openOcdConfigs": [
+        "board/esp32c3-ftdi.cfg"
+    ],
+    "idf.portWin": "COM14",
+    "files.associations": {
+        "sdkconfig.h": "c",
+        "app_priv.h": "c"
+    }
+}

@@ -91,6 +91,17 @@ esp_rmaker_device_t *esp_rmaker_fan_device_create(const char *dev_name,
 esp_rmaker_device_t *esp_rmaker_temp_sensor_device_create(const char *dev_name,
             void *priv_data, float temperature);
 
+/**
+ * @brief Create a standard Thermostat device
+ * 
+ * @param dev_name 
+ * @param priv_data 
+ * @param power 
+ * @return esp_rmaker_device_t* 
+ */
+esp_rmaker_device_t *esp_rmaker_thermostat_device_create(const char *dev_name,
+        void *priv_data, bool power);
+        
 #ifdef __cplusplus
 }
 #endif

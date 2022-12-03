@@ -65,6 +65,7 @@ idf_component_register(SRCS ${core_srcs} ${mqtt_srcs} ${ota_srcs} ${standard_typ
 target_add_binary_data(${COMPONENT_TARGET} "server_certs/rmaker_mqtt_server.crt" TEXT)
 target_add_binary_data(${COMPONENT_TARGET} "server_certs/rmaker_claim_service_server.crt" TEXT)
 target_add_binary_data(${COMPONENT_TARGET} "server_certs/rmaker_ota_server.crt" TEXT)
+target_add_binary_data(${COMPONENT_TARGET} "server_certs/ys_cacert_mqtt_server.crt" TEXT)
 
 # Added just to automatically trigger re-runs of CMake
 git_describe(RMAKER_VERSION ${COMPONENT_DIR})

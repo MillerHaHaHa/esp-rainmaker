@@ -1,0 +1,37 @@
+menu "HT1621 LCD Driver"
+
+    config HT1621_LCD_ENABLE
+        bool "Enable HT1621 LCD"
+        default n
+        help
+            Disable the HT1621 LCD.
+
+    config HT1621_PIN_BACKLIGHT
+        int "HT1621 LCD PIN BACKLIGHT"
+        default 5
+        depends on HT1621_LCD_ENABLE
+        help
+            Set the HT1621 LCD PIN BACKLIGHT.
+
+    config HT1621_PIN_CS
+        int "HT1621 LCD PIN CS"
+        default 6
+        depends on HT1621_LCD_ENABLE
+        help
+            Set the HT1621 LCD PIN CS.
+	
+    config HT1621_PIN_WR
+        int "HT1621 LCD PIN WR"
+        default 7
+        depends on HT1621_LCD_ENABLE
+        help
+            Set the HT1621 LCD PIN WR.
+
+    config HT1621_PIN_DATA
+        int "HT1621 LCD PIN DATA"
+        default 8
+        depends on HT1621_LCD_ENABLE
+        help
+            Set the HT1621 LCD PIN DATA.
+
+endmenu

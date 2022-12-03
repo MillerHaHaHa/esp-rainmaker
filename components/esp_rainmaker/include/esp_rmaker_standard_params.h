@@ -51,6 +51,8 @@ extern "C"
 #define ESP_RMAKER_DEF_WIFI_RESET_NAME      "Wi-Fi-Reset"
 #define ESP_RMAKER_DEF_LOCAL_CONTROL_POP    "POP"
 #define ESP_RMAKER_DEF_LOCAL_CONTROL_TYPE   "Type"
+#define ESP_RMAKER_DEF_SETPOINT_TEMPERATURE_NAME    "Setpoint-Temperature"
+#define ESP_RMAKER_DEF_MODE_CONTROL_NAME    "Mode"
 
 /**
  * Create standard name param
@@ -344,6 +346,34 @@ esp_rmaker_param_t *esp_rmaker_local_control_pop_param_create(const char *param_
  * @return NULL in case of failures.
  */
 esp_rmaker_param_t *esp_rmaker_local_control_type_param_create(const char *param_name, int val);
+
+/**
+ * @brief Create standard setpoint temperature param
+ * 
+ */
+esp_rmaker_param_t *esp_rmaker_setpoint_temperature_param_create(const char *param_name, float val);
+
+/**
+ * @brief Create standard mode param
+ * 
+ * @param param_name 
+ * @param default_val 
+ * @param val 
+ * @param count 
+ * @return esp_rmaker_param_t* 
+ */
+esp_rmaker_param_t *esp_rmaker_mode_param_create(const char *param_name, const char* default_val, const char* val[], uint8_t count);
+
+/**
+ * @brief Create standard direction param
+ * 
+ * @param param_name 
+ * @param default_val 
+ * @param val 
+ * @param count 
+ * @return esp_rmaker_param_t* 
+ */
+esp_rmaker_param_t *esp_rmaker_direction_param_custom_create(const char *param_name, const char* default_val, const char* val[], uint8_t count);
 
 #ifdef __cplusplus
 }

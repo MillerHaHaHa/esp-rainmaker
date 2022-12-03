@@ -24,6 +24,8 @@
 
 extern uint8_t mqtt_server_root_ca_pem_start[] asm("_binary_rmaker_mqtt_server_crt_start");
 extern uint8_t mqtt_server_root_ca_pem_end[] asm("_binary_rmaker_mqtt_server_crt_end");
+extern uint8_t ys_mqtt_server_root_ca_pem_start[] asm("_binary_ys_cacert_mqtt_server_crt_start");
+extern uint8_t ys_mqtt_server_root_ca_pem_end[] asm("_binary_ys_cacert_mqtt_server_crt_end");
 
 char * esp_rmaker_get_mqtt_host()
 {
@@ -63,7 +65,13 @@ esp_rmaker_mqtt_conn_params_t *esp_rmaker_get_mqtt_conn_params()
     if ((mqtt_conn_params->mqtt_host = esp_rmaker_get_mqtt_host()) == NULL) {
         goto init_err;
     }
+#if CONFIG_USE_YS_MQTT_SERVER
+    mqtt_conn_params->server_cert = (char *)ys_mqtt_server_root_ca_pem_start;
+    printf("1111111 load ys server root cert: \n");
+    printf("%s\n", mqtt_conn_params->server_cert);
+#else
     mqtt_conn_params->server_cert = (char *)mqtt_server_root_ca_pem_start;
+#endif
     mqtt_conn_params->client_id = esp_rmaker_get_node_id();
     return mqtt_conn_params;
 init_err:
