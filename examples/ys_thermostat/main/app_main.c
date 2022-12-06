@@ -100,7 +100,7 @@ static esp_err_t app_sensor_update_timer_enable(void)
 
 void app_main()
 {
-    esp_log_level_set("*", ESP_LOG_DEBUG);
+    esp_log_level_set("*", ESP_LOG_INFO);
 
     /* Initialize Application specific hardware drivers and
      * set initial state.

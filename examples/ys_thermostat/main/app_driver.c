@@ -8,6 +8,7 @@
 */
 #include <string.h>
 #include <sdkconfig.h>
+#include <math.h>
 
 #include <iot_button.h>
 #include <esp_log.h>
@@ -18,6 +19,11 @@
 #include <app_reset.h>
 #include "driver/temperature_sensor.h"
 #include <ws2812_led.h>
+
+#include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
+
 #include "app_priv.h"
 
 /* This is the button that is used for toggling the power */
@@ -68,7 +74,7 @@ void lcd_beep_once(void)
 {
     lcd_beep(1);
 
-    if(xTimerStart(beep_timer, 0) != pdTRUE) {
+    if(xTimerStart(beep_timer, 10) != pdTRUE) {
         ESP_LOGE(TAG, "start beep timer error");
     }
 }
@@ -81,6 +87,132 @@ char *get_scene_str(LCD_SCENE_E eScene)
 char *get_workmode_str(LCD_WORK_MODE_E eWorkMode)
 {
     return mode_list[(int)eWorkMode];
+}
+
+#define ADC1_CHAN   ADC_CHANNEL_2
+static adc_oneshot_unit_handle_t adc1_handle;
+static adc_cali_handle_t adc1_cali_handle = NULL;
+
+/*---------------------------------------------------------------
+        ADC Calibration
+---------------------------------------------------------------*/
+static bool example_adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_handle_t *out_handle)
+{
+    adc_cali_handle_t handle = NULL;
+    esp_err_t ret = ESP_FAIL;
+    bool calibrated = false;
+
+#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
+    if (!calibrated) {
+        ESP_LOGI(TAG, "calibration scheme version is %s", "Curve Fitting");
+        adc_cali_curve_fitting_config_t cali_config = {
+            .unit_id = unit,
+            .atten = atten,
+            .bitwidth = ADC_BITWIDTH_DEFAULT,
+        };
+        ret = adc_cali_create_scheme_curve_fitting(&cali_config, &handle);
+        if (ret == ESP_OK) {
+            calibrated = true;
+        }
+    }
+#endif
+
+#if ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
+    if (!calibrated) {
+        ESP_LOGI(TAG, "calibration scheme version is %s", "Line Fitting");
+        adc_cali_line_fitting_config_t cali_config = {
+            .unit_id = unit,
+            .atten = atten,
+            .bitwidth = ADC_BITWIDTH_DEFAULT,
+        };
+        ret = adc_cali_create_scheme_line_fitting(&cali_config, &handle);
+        if (ret == ESP_OK) {
+            calibrated = true;
+        }
+    }
+#endif
+
+    *out_handle = handle;
+    if (ret == ESP_OK) {
+        ESP_LOGI(TAG, "Calibration Success");
+    } else if (ret == ESP_ERR_NOT_SUPPORTED || !calibrated) {
+        ESP_LOGW(TAG, "eFuse not burnt, skip software calibration");
+    } else {
+        ESP_LOGE(TAG, "Invalid arg or no memory");
+    }
+
+    return calibrated;
+}
+
+static void example_adc_calibration_deinit(adc_cali_handle_t handle)
+{
+#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
+    ESP_LOGI(TAG, "deregister %s calibration scheme", "Curve Fitting");
+    ESP_ERROR_CHECK(adc_cali_delete_scheme_curve_fitting(handle));
+
+#elif ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
+    ESP_LOGI(TAG, "deregister %s calibration scheme", "Line Fitting");
+    ESP_ERROR_CHECK(adc_cali_delete_scheme_line_fitting(handle));
+#endif
+}
+
+void adc_init(void)
+{
+    //-------------ADC1 Init---------------//
+    adc_oneshot_unit_init_cfg_t init_config1 = {
+        .unit_id = ADC_UNIT_1,
+    };
+    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config1, &adc1_handle));
+
+    //-------------ADC1 Config---------------//
+    adc_oneshot_chan_cfg_t config = {
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
+        .atten = ADC_ATTEN_DB_11,
+    };
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC1_CHAN, &config));
+
+    //-------------ADC1 Calibration Init---------------//
+    example_adc_calibration_init(ADC_UNIT_1, ADC_ATTEN_DB_11, &adc1_cali_handle);
+}
+
+int adc_read_voltage_mv(void)
+{
+    int adc_raw = 0;
+    int voltage = 0;
+
+    ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, ADC1_CHAN, &adc_raw));
+    ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_1 + 1, ADC1_CHAN, adc_raw);
+    ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_handle, adc_raw, &voltage));
+    ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_1 + 1, ADC1_CHAN, voltage);
+
+    return voltage;
+}
+
+float Vt_to_Rt(int Vt_val, int Vcc_val, int R1_val) {
+    float Rt = R1_val * (float)Vt_val / (Vcc_val - (float)Vt_val);
+    return Rt;
+}
+
+float Rt_to_temp(float Rt_val, int b_val, int Rt_default, int temp_default) {
+    float temp = (1 / ((log(Rt_val / Rt_default) / b_val) + 1 / (temp_default + 273.15))) - 273.15 + 0.5;
+    return temp;
+}
+
+float Vt_to_temp(int input_Vt_mv)
+{
+    int Vcc = 4900;                     // mV
+    int R1 = 4800;                      // Ω
+    int b = 4000;                     
+    int Rt_default = 4800;              // Ω
+    int temp_default = 18;              // ℃
+
+    float Rt = Vt_to_Rt(input_Vt_mv, Vcc, R1);
+    printf("output Rt = %f Ω\n", Rt);
+
+    float temp = Rt_to_temp(Rt, b, Rt_default, temp_default);
+    printf("output temp = %f ℃\n", temp);
+
+    return temp;
 }
 
 float app_temperature_sensor_get_value(void)
@@ -99,7 +231,7 @@ float app_temperature_sensor_get_value(void)
 temperature_sensor_handle_t app_temperature_sensor_init(void)
 {
     temperature_sensor_handle_t temp_sensor = NULL;
-    temperature_sensor_config_t temp_sensor_config = TEMPERAUTRE_SENSOR_CONFIG_DEFAULT(10, 50);
+    temperature_sensor_config_t temp_sensor_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(10, 50);
     ESP_ERROR_CHECK(temperature_sensor_install(&temp_sensor_config, &temp_sensor));
 
     ESP_LOGI(TAG, "Enable temperature sensor");
@@ -196,7 +328,8 @@ esp_err_t app_thermostat_set_work_mode(char* work_mode)
 
 float app_thermostat_get_current_temperature(void)
 {
-    g_thermostat_params.local_temp = app_temperature_sensor_get_value();
+    // g_thermostat_params.local_temp = app_temperature_sensor_get_value();
+    g_thermostat_params.local_temp = Vt_to_temp(adc_read_voltage_mv());
 
     return g_thermostat_params.local_temp;
 }
@@ -372,13 +505,15 @@ esp_err_t app_thermostat_init(void)
     //     return err;
     // }
 
+    adc_init();
+
     lcd_init();
 
-    g_temp_sensor = app_temperature_sensor_init();
-    if (!g_temp_sensor) {
-        ESP_LOGE(TAG, "init temperature sensor error !!!");
-        return -1;
-    }
+    // g_temp_sensor = app_temperature_sensor_init();
+    // if (!g_temp_sensor) {
+    //     ESP_LOGE(TAG, "init temperature sensor error !!!");
+    //     return -1;
+    // }
 
     // restore saved params
     app_thermostat_restore_params(&g_thermostat_params);
@@ -405,17 +540,28 @@ static void push_btn_cb(void *arg)
     if(0 == strcmp(str, "power")) {
         app_thermostat_set_power_state(!g_thermostat_params.power_state);
         app_thermostat_lcd_update(1);
+    } else if(0 == strcmp(str, "speed")) {
+        g_thermostat_params.speed += 1;
+        if(g_thermostat_params.speed > 3) {
+            g_thermostat_params.speed = 0;
+        }
+        app_thermostat_set_speed(g_thermostat_params.speed);
+        app_thermostat_lcd_update(1);
+    } else if(0 == strcmp(str, "up")) {
+
+    } else if(0 == strcmp(str, "down")) {
+
     }
 }
 
 void button_init(void)
 {
 #define K1_POWER_GPIO       BUTTON_GPIO
-// #define K2_M_GPIO           BUTTON_GPIO
-// #define K3_TIME_GPIO        BUTTON_GPIO
-// #define K4_WIND_GPIO        BUTTON_GPIO
-// #define K5_UP_GPIO          BUTTON_GPIO
-// #define K6_DOWN_GPIO        BUTTON_GPIO
+// #define K2_M_GPIO           3
+// #define K3_TIME_GPIO        4
+#define K4_SPEED_GPIO       3
+#define K5_UP_GPIO          4
+#define K6_DOWN_GPIO        5
 
     button_handle_t k1_power_handle = iot_button_create(K1_POWER_GPIO, BUTTON_ACTIVE_LEVEL);
     if (k1_power_handle) {
@@ -441,29 +587,28 @@ void button_init(void)
         /* Register Wi-Fi reset and factory reset functionality on same button */
 
     }
-
-    button_handle_t k4_wind_handle = iot_button_create(BUTTON_GPIO, BUTTON_ACTIVE_LEVEL);
-    if (k4_wind_handle) {
+#endif
+    button_handle_t k4_speed_handle = iot_button_create(K4_SPEED_GPIO, BUTTON_ACTIVE_LEVEL);
+    if (k4_speed_handle) {
         /* Register a callback for a button tap (short press) event */
-        iot_button_set_evt_cb(k4_wind_handle, BUTTON_CB_TAP, push_btn_cb, NULL);
+        iot_button_set_evt_cb(k4_speed_handle, BUTTON_CB_TAP, push_btn_cb, "speed");
         /* Register Wi-Fi reset and factory reset functionality on same button */
 
     }
 
-    button_handle_t k5_up_handle = iot_button_create(BUTTON_GPIO, BUTTON_ACTIVE_LEVEL);
+    button_handle_t k5_up_handle = iot_button_create(K5_UP_GPIO, BUTTON_ACTIVE_LEVEL);
     if (k5_up_handle) {
         /* Register a callback for a button tap (short press) event */
-        iot_button_set_evt_cb(k5_up_handle, BUTTON_CB_TAP, push_btn_cb, NULL);
+        iot_button_set_evt_cb(k5_up_handle, BUTTON_CB_TAP, push_btn_cb, "up");
         /* Register Wi-Fi reset and factory reset functionality on same button */
     }
 
-    button_handle_t k6_down_handle = iot_button_create(BUTTON_GPIO, BUTTON_ACTIVE_LEVEL);
+    button_handle_t k6_down_handle = iot_button_create(K6_DOWN_GPIO, BUTTON_ACTIVE_LEVEL);
     if (k6_down_handle) {
         /* Register a callback for a button tap (short press) event */
-        iot_button_set_evt_cb(k6_down_handle, BUTTON_CB_TAP, push_btn_cb, NULL);
+        iot_button_set_evt_cb(k6_down_handle, BUTTON_CB_TAP, push_btn_cb, "down");
         /* Register Wi-Fi reset and factory reset functionality on same button */
     }
-#endif
 }
 
 void app_driver_init()

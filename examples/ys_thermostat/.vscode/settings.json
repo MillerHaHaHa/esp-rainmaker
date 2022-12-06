@@ -7,5 +7,6 @@
     "files.associations": {
         "sdkconfig.h": "c",
         "app_priv.h": "c"
-    }
+    },
+    "idf.port": "/dev/ttyUSB0"
 }

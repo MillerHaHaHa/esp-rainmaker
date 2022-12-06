@@ -16,7 +16,7 @@
 
 #include <esp_log.h>
 
-#include "HT1621.h"
+#include "ht1621.h"
 #include "lcd.h"
 
 static const char *TAG = "lcd";
