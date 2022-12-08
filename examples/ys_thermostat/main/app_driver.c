@@ -6,6 +6,8 @@
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
    CONDITIONS OF ANY KIND, either express or implied.
 */
+#include "sys/time.h"
+
 #include <string.h>
 #include <sdkconfig.h>
 #include <math.h>
@@ -41,9 +43,9 @@ static const char *TAG = "app_driver";
 
 static temperature_sensor_handle_t g_temp_sensor = NULL;
 
-static uint16_t g_hue = DEFAULT_HUE;
-static uint16_t g_saturation = DEFAULT_SATURATION;
-static uint16_t g_value = DEFAULT_BRIGHTNESS;
+// static uint16_t g_hue = DEFAULT_HUE;
+// static uint16_t g_saturation = DEFAULT_SATURATION;
+// static uint16_t g_value = DEFAULT_BRIGHTNESS;
 
 const char *direction_list[DIRECTION_CNT] = {"Auto","Low","Medinum","High"};
 const char *mode_list[MODE_CNT] = {"Auto","Cold","Heat","Wind","Dry"};
@@ -326,8 +328,28 @@ esp_err_t app_thermostat_set_work_mode(char* work_mode)
     return ESP_OK;
 }
 
+void get_current_time_second(struct tm *ptimeinfo) 
+{
+    time_t now;
+    time(&now);
+    localtime_r(&now, ptimeinfo);
+    ptimeinfo->tm_year += 1900;
+    ptimeinfo->tm_mon += 1;
+    ESP_LOGI(TAG, "TIME[%d-%02d-%02d(%d) %02d:%02d:%02d]",  ptimeinfo->tm_year, ptimeinfo->tm_mon, ptimeinfo->tm_mday, 
+                                                            ptimeinfo->tm_wday, ptimeinfo->tm_hour, ptimeinfo->tm_min, ptimeinfo->tm_sec);
+    // char strftime_buf[64] = {0};
+    // strftime(strftime_buf, sizeof(strftime_buf), "%c %z[%Z]", ptimeinfo);
+    // ESP_LOGI(TAG, "[%s]", strftime_buf);
+}
+
 float app_thermostat_get_current_temperature(void)
 {
+    struct tm timeinfo;
+    get_current_time_second(&timeinfo);
+    g_thermostat_params.time.hour = timeinfo.tm_hour;
+    g_thermostat_params.time.min = timeinfo.tm_min;
+    g_thermostat_params.time.wday = timeinfo.tm_wday;
+
     // g_thermostat_params.local_temp = app_temperature_sensor_get_value();
     g_thermostat_params.local_temp = Vt_to_temp(adc_read_voltage_mv());
 
