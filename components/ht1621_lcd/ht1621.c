@@ -230,26 +230,6 @@ void wrCLR(unsigned char len) {
 		addr = addr + 2;
 	}
 }
-void ht1621_setBatteryLevel(int level) {
-	// zero out the previous (otherwise the or couldn't be possible)
-		_buffer[0] &= 0x7F;
-		_buffer[1] &= 0x7F;
-		_buffer[2] &= 0x7F;
-
-	switch(level){
-		case 3: // battery on and all 3 segments
-			_buffer[0] |= 0x80;
-		case 2: // battery on and 2 segments
-			_buffer[1] |= 0x80;
-		case 1: // battery on and 1 segment
-			_buffer[2] |= 0x80;
-		case 0: // battery indication off
-		default:
-			break;
-	}
-
-	update();
-}
 
 void ht1621_beep(int enable)
 {

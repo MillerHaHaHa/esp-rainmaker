@@ -1,4 +1,4 @@
-set(priv_req wifi_provisioning qrcode nvs_flash esp_event)
+set(priv_req wifi_provisioning qrcode nvs_flash esp_event json_parser esp_rainmaker user_debug_header)
 
 idf_component_register(SRCS "app_wifi.c"
                     INCLUDE_DIRS "."

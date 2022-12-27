@@ -16,6 +16,7 @@
 #include <stdbool.h>
 #include <esp_err.h>
 #include <esp_rmaker_core.h>
+#include "user_debug_header.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -29,16 +30,29 @@ extern "C"
  * to create your own parameters with custom names, if required.
  */
 
-#define ESP_RMAKER_DEF_NAME_PARAM           "Name"
+#if USE_YS_MQTT_BROKER
+#define ESP_RMAKER_DEF_POWER_NAME           "power"
+#define ESP_RMAKER_DEF_SPEED_NAME           "speed"
+#define ESP_RMAKER_DEF_TEMPERATURE_NAME     "temperature"
+#define ESP_RMAKER_DEF_SETPOINT_TEMPERATURE_NAME    "set_temp"
+#define ESP_RMAKER_DEF_MODE_CONTROL_NAME    "mode"
+#define ESP_RMAKER_DEF_VALVE_NAME           "valve"
+#else
 #define ESP_RMAKER_DEF_POWER_NAME           "Power"
+#define ESP_RMAKER_DEF_SPEED_NAME           "Speed"
+#define ESP_RMAKER_DEF_TEMPERATURE_NAME     "Temperature"
+#define ESP_RMAKER_DEF_SETPOINT_TEMPERATURE_NAME    "Set-Temp"
+#define ESP_RMAKER_DEF_MODE_CONTROL_NAME    "Mode"
+#define ESP_RMAKER_DEF_VALVE_NAME           "Valve"
+#endif
+
+#define ESP_RMAKER_DEF_NAME_PARAM           "Name"
 #define ESP_RMAKER_DEF_BRIGHTNESS_NAME      "Brightness"
 #define ESP_RMAKER_DEF_HUE_NAME             "Hue"
 #define ESP_RMAKER_DEF_SATURATION_NAME      "Saturation"
 #define ESP_RMAKER_DEF_INTENSITY_NAME       "Intensity"
 #define ESP_RMAKER_DEF_CCT_NAME             "CCT"
 #define ESP_RMAKER_DEF_DIRECTION_NAME       "Direction"
-#define ESP_RMAKER_DEF_SPEED_NAME           "Speed"
-#define ESP_RMAKER_DEF_TEMPERATURE_NAME     "Temperature"
 #define ESP_RMAKER_DEF_OTA_STATUS_NAME      "Status"
 #define ESP_RMAKER_DEF_OTA_INFO_NAME        "Info"
 #define ESP_RMAKER_DEF_OTA_URL_NAME         "URL"
@@ -51,8 +65,6 @@ extern "C"
 #define ESP_RMAKER_DEF_WIFI_RESET_NAME      "Wi-Fi-Reset"
 #define ESP_RMAKER_DEF_LOCAL_CONTROL_POP    "POP"
 #define ESP_RMAKER_DEF_LOCAL_CONTROL_TYPE   "Type"
-#define ESP_RMAKER_DEF_SETPOINT_TEMPERATURE_NAME    "Setpoint-Temperature"
-#define ESP_RMAKER_DEF_MODE_CONTROL_NAME    "Mode"
 
 /**
  * Create standard name param
@@ -357,23 +369,19 @@ esp_rmaker_param_t *esp_rmaker_setpoint_temperature_param_create(const char *par
  * @brief Create standard mode param
  * 
  * @param param_name 
- * @param default_val 
  * @param val 
- * @param count 
  * @return esp_rmaker_param_t* 
  */
-esp_rmaker_param_t *esp_rmaker_mode_param_create(const char *param_name, const char* default_val, const char* val[], uint8_t count);
+esp_rmaker_param_t *esp_rmaker_mode_param_create(const char *param_name, int val);
 
 /**
  * @brief Create standard direction param
  * 
  * @param param_name 
- * @param default_val 
  * @param val 
- * @param count 
  * @return esp_rmaker_param_t* 
  */
-esp_rmaker_param_t *esp_rmaker_direction_param_custom_create(const char *param_name, const char* default_val, const char* val[], uint8_t count);
+esp_rmaker_param_t *esp_rmaker_direction_param_custom_create(const char *param_name, int val);
 
 #ifdef __cplusplus
 }

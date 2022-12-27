@@ -26,17 +26,6 @@ static void app_test_handler(const char *topic, void *payload, size_t payload_le
  ***/
 #define HT1621_ADDR_STR   "addr"
 #define HT1621_DATA_STR   "data"
-#define HT1621_TEMP_STR   "temp"
-#define HT1621_WIND_SPEED_STR "speed"
-#define HT1621_WORK_MODE_STR "mode"
-#define HT1621_VALVE_STR "valve"
-#define HT1621_SCENE_STR "scene"
-#define HT1621_ALARM_STR "alarm"
-#define HT1621_LOCKER_STR "locker"
-#define HT1621_HOUSE_STR "house"
-#define HT1621_WARNING_STR "warning"
-#define HT1621_DISPLAY_TIME_STR "displaytime"
-#define HT1621_DISPLAY_STR "display"
 
     jparse_ctx_t jctx;
     int addr = 0;
@@ -67,62 +56,6 @@ static void app_test_handler(const char *topic, void *payload, size_t payload_le
         ht1621_set_buffer(addr, ivalue);
         ht1621_update();
         goto end;
-    }
-
-    ret = json_obj_get_string(&jctx, HT1621_SCENE_STR, svalue, sizeof(svalue));
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Error get string %s", HT1621_SCENE_STR);
-    } else {
-        ESP_LOGI(TAG, "%s: %s", HT1621_SCENE_STR, svalue);
-        app_thermostat_set_scene(svalue);
-    }
-
-    ret = json_obj_get_bool(&jctx, HT1621_WARNING_STR, &bvalue);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Error get bool %s", HT1621_WARNING_STR);
-    } else {
-        ESP_LOGI(TAG, "%s: %d", HT1621_WARNING_STR, bvalue);
-        app_thermostat_set_warning_state(bvalue);
-    }
-
-    ret = json_obj_get_bool(&jctx, HT1621_DISPLAY_STR, &bvalue);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Error get bool %s", HT1621_DISPLAY_STR);
-    } else {
-        ESP_LOGI(TAG, "%s: %d", HT1621_DISPLAY_STR, bvalue);
-        app_thermostat_set_power_state(bvalue);
-    }
-
-    ret = json_obj_get_bool(&jctx, HT1621_DISPLAY_TIME_STR, &bvalue);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Error get bool %s", HT1621_DISPLAY_TIME_STR);
-    } else {
-        ESP_LOGI(TAG, "%s: %d", HT1621_DISPLAY_TIME_STR, bvalue);
-        app_thermostat_set_display_time(bvalue);
-    }
-
-    ret = json_obj_get_bool(&jctx, HT1621_ALARM_STR, &bvalue);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Error get bool %s", HT1621_ALARM_STR);
-    } else {
-        ESP_LOGI(TAG, "%s: %d", HT1621_ALARM_STR, bvalue);
-        app_thermostat_set_alarm_state(bvalue);
-    }
-
-    ret = json_obj_get_bool(&jctx, HT1621_HOUSE_STR, &bvalue);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Error get bool %s", HT1621_HOUSE_STR);
-    } else {
-        ESP_LOGI(TAG, "%s: %d", HT1621_HOUSE_STR, bvalue);
-        app_thermostat_set_house_state(bvalue);
-    }
-
-    ret = json_obj_get_bool(&jctx, HT1621_LOCKER_STR, &bvalue);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Error get bool %s", HT1621_LOCKER_STR);
-    } else {
-        ESP_LOGI(TAG, "%s: %d", HT1621_LOCKER_STR, bvalue);
-        app_thermostat_set_locker_state(bvalue);
     }
 
     app_thermostat_lcd_update(1);

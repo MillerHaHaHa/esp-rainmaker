@@ -28,6 +28,7 @@
 #include "esp_rmaker_user_mapping.pb-c.h"
 #include "esp_rmaker_internal.h"
 #include "esp_rmaker_mqtt_topics.h"
+#include "user_debug_header.h"
 
 static const char *TAG = "esp_rmaker_user_mapping";
 
@@ -142,7 +143,14 @@ static void esp_rmaker_user_mapping_cb(void *priv_data)
     char *node_id = esp_rmaker_get_node_id();
     json_gen_obj_set_string(&jstr, "node_id", node_id);
     json_gen_obj_set_string(&jstr, "user_id", rmaker_user_mapping_data->user_id);
+#if USE_YS_MQTT_BROKER
+    json_gen_obj_set_string(&jstr, "position_id", rmaker_user_mapping_data->secret_key);
+    esp_rmaker_node_info_t *info = esp_rmaker_node_get_info(esp_rmaker_get_node());
+    json_gen_obj_set_string(&jstr, "model",  info->model);
+    json_gen_obj_set_string(&jstr, "fw_version",  info->fw_version);
+#else
     json_gen_obj_set_string(&jstr, "secret_key", rmaker_user_mapping_data->secret_key);
+#endif
     if (esp_rmaker_user_node_mapping_get_state() != ESP_RMAKER_USER_MAPPING_DONE) {
         json_gen_obj_set_bool(&jstr, "reset", true);
     }
@@ -151,6 +159,7 @@ static void esp_rmaker_user_mapping_cb(void *priv_data)
     char publish_topic[MQTT_TOPIC_BUFFER_SIZE];
     esp_rmaker_create_mqtt_topic(publish_topic, sizeof(publish_topic), USER_MAPPING_TOPIC_SUFFIX, USER_MAPPING_TOPIC_RULE);
     esp_err_t err = esp_rmaker_mqtt_publish(publish_topic, publish_payload, strlen(publish_payload), RMAKER_MQTT_QOS1, &rmaker_user_mapping_data->mqtt_msg_id);
+    ESP_LOGI(TAG, "MQTT Publish Topic: %s", publish_topic);
     ESP_LOGI(TAG, "MQTT Publish: %s", publish_payload);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "MQTT Publish Error %d", err);

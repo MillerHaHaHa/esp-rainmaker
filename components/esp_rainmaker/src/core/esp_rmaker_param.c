@@ -27,6 +27,7 @@
 #include <esp_rmaker_utils.h>
 #include "esp_rmaker_mqtt_topics.h"
 #include "esp_rmaker_internal.h"
+#include "user_debug_header.h"
 
 #define TS_DATA_VERSION                         "2021-09-13"
 
@@ -436,6 +437,7 @@ esp_err_t esp_rmaker_param_get_stored_value(_esp_rmaker_param_t *param, esp_rmak
     nvs_handle handle;
     esp_err_t err = nvs_open_from_partition(ESP_RMAKER_NVS_PART_NAME, param->parent->name, NVS_READONLY, &handle);
     if (err != ESP_OK) {
+        ESP_LOGE(TAG, "restore nvs open err: %d", err);
         return err;
     }
     if ((param->val.type == RMAKER_VAL_TYPE_STRING) || (param->val.type == RMAKER_VAL_TYPE_OBJECT) ||
@@ -462,11 +464,27 @@ esp_err_t esp_rmaker_param_get_stored_value(_esp_rmaker_param_t *param, esp_rmak
                 val->val.s = s_val;
             }
         }
+
+        if (param->val.type == RMAKER_VAL_TYPE_STRING) {
+            ESP_LOGI(TAG, "[%s] restore val: %s", param->name, val->val.s);
+        }
     } else {
         size_t len = sizeof(esp_rmaker_param_val_t);
         err = nvs_get_blob(handle, param->name, val, &len);
+
+        if (param->val.type == RMAKER_VAL_TYPE_FLOAT) {
+            ESP_LOGI(TAG, "[%s] restore val: %f", param->name, val->val.f);
+        } else if(param->val.type == RMAKER_VAL_TYPE_BOOLEAN) {
+            ESP_LOGI(TAG, "[%s] restore val: %s", param->name, val->val.b? "true": "false");
+        } else if(param->val.type == RMAKER_VAL_TYPE_INTEGER) {
+            ESP_LOGI(TAG, "[%s] restore val: %d", param->name, val->val.i);
+        }
     }
     nvs_close(handle);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "restore err: %d", err);
+    }
     return err;
 }
 
@@ -478,6 +496,7 @@ esp_err_t esp_rmaker_param_store_value(_esp_rmaker_param_t *param)
     nvs_handle handle;
     esp_err_t err = nvs_open_from_partition(ESP_RMAKER_NVS_PART_NAME, param->parent->name, NVS_READWRITE, &handle);
     if (err != ESP_OK) {
+        ESP_LOGE(TAG, "store nvs open err: %d", err);
         return err;
     }
     if ((param->val.type == RMAKER_VAL_TYPE_STRING) || (param->val.type == RMAKER_VAL_TYPE_OBJECT) ||
@@ -489,11 +508,27 @@ esp_err_t esp_rmaker_param_store_value(_esp_rmaker_param_t *param)
         } else {
             err = ESP_OK;
         }
+
+        if (param->val.type == RMAKER_VAL_TYPE_STRING) {
+            ESP_LOGI(TAG, "[%s] store val: %s", param->name, param->val.val.s);
+        }
     } else {
         err = nvs_set_blob(handle, param->name, &param->val, sizeof(esp_rmaker_param_val_t));
         nvs_commit(handle);
+
+        if (param->val.type == RMAKER_VAL_TYPE_FLOAT) {
+            ESP_LOGI(TAG, "[%s] store val: %f", param->name, param->val.val.f);
+        } else if(param->val.type == RMAKER_VAL_TYPE_BOOLEAN) {
+            ESP_LOGI(TAG, "[%s] store val: %s", param->name, param->val.val.b? "true": "false");
+        } else if(param->val.type == RMAKER_VAL_TYPE_INTEGER) {
+            ESP_LOGI(TAG, "[%s] store val: %d", param->name, param->val.val.i);
+        }
     }
     nvs_close(handle);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "store err: %d", err);
+    }
     return err;
 }
 
@@ -868,7 +903,11 @@ esp_err_t esp_rmaker_report_node_state(void)
          */
         char *node_params_buf = esp_rmaker_param_get_buf(0);
         if (strlen(node_params_buf) > 10) {
+#if USE_YS_MQTT_BROKER
+            esp_rmaker_create_mqtt_topic(publish_topic, sizeof(publish_topic), NODE_PARAMS_LOCAL_TOPIC_SUFFIX, NODE_PARAMS_LOCAL_TOPIC_RULE);
+#else
             esp_rmaker_create_mqtt_topic(publish_topic, sizeof(publish_topic), NODE_PARAMS_LOCAL_INIT_TOPIC_SUFFIX, NODE_PARAMS_LOCAL_INIT_RULE);
+#endif
             ESP_LOGI(TAG, "Reporting params (init): %s", node_params_buf);
             if (esp_rmaker_params_mqtt_init_done) {
                 esp_rmaker_mqtt_publish(publish_topic, node_params_buf, strlen(node_params_buf), RMAKER_MQTT_QOS1, NULL);

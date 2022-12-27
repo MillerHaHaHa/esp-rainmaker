@@ -6,6 +6,7 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 #include <string.h>
+#include <json_parser.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/event_groups.h>
@@ -31,11 +32,13 @@
 #include <wifi_provisioning/scheme_softap.h>
 #endif /* CONFIG_APP_WIFI_PROV_TRANSPORT_BLE */
 
+#include "esp_rmaker_user_mapping.h"
 #include <qrcode.h>
 #include <nvs.h>
 #include <nvs_flash.h>
 #include <esp_timer.h>
 #include "app_wifi.h"
+#include "user_debug_header.h"
 
 ESP_EVENT_DEFINE_BASE(APP_WIFI_EVENT);
 static const char *TAG = "app_wifi";
@@ -325,6 +328,100 @@ static void app_wifi_prov_stop(void *priv)
     esp_event_post(APP_WIFI_EVENT, APP_WIFI_EVENT_PROV_TIMEOUT, NULL, 0, portMAX_DELAY);
 }
 
+/* Handler for the optional provisioning endpoint registered by the application.
+ * The data format can be chosen by applications. Here, we are using plain ascii text.
+ * Applications can choose to use other formats like protobuf, JSON, XML, etc.
+ */
+esp_err_t custom_prov_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
+                                          uint8_t **outbuf, ssize_t *outlen, void *priv_data)
+{
+    if (inbuf) {
+        ESP_LOGI(TAG, "Received data: %.*s", inlen, (char *)inbuf);
+    }
+
+    wifi_config_t s_wifi_cfg = {0};
+    jparse_ctx_t jctx;
+    char user_id[20] = {0};
+    char ssid[32] = {0};
+    char passwd[64] = {0};
+    char position_id[20] = {0};
+
+    int ret = json_parse_start(&jctx, (char *)inbuf, (int) inlen);
+    if (ret != 0) {
+        ESP_LOGE(TAG, "Invalid JSON received: %s", (char *)inbuf);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ret = json_obj_get_string(&jctx, "user_id", user_id, sizeof(user_id));
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Error get string %s", "user_id");
+        goto CleanUp;
+    }
+    ESP_LOGI(TAG, "[ys] user_id: %s", user_id);
+
+    ret = json_obj_get_string(&jctx, "ssid", ssid, sizeof(ssid));
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Error get string %s", "ssid");
+        goto CleanUp;
+    }
+    ESP_LOGI(TAG, "[ys] ssid: %s", ssid);
+
+    ret = json_obj_get_string(&jctx, "passwd", passwd, sizeof(passwd));
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Error get string %s", "passwd");
+        goto CleanUp;
+    }
+    ESP_LOGI(TAG, "[ys] passwd: %s", passwd);
+
+    ret = json_obj_get_string(&jctx, "position_id", position_id, sizeof(position_id));
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Error get string %s", "position_id");
+        goto CleanUp;
+    }
+    ESP_LOGI(TAG, "[ys] position_id: %s", position_id);
+
+   /* Using memcpy allows the max SSID length to be 32 bytes (as per 802.11 standard).
+     * But this doesn't guarantee that the saved SSID will be null terminated, because
+     * wifi_cfg->sta.ssid is also 32 bytes long (without extra 1 byte for null character).
+     * Although, this is not a matter for concern because esp_wifi library reads the SSID
+     * upto 32 bytes in absence of null termination */
+
+    /* Ensure SSID less than 32 bytes is null terminated */
+    memset(s_wifi_cfg.sta.ssid, 0, sizeof(s_wifi_cfg.sta.ssid));
+    strlcpy((char *) s_wifi_cfg.sta.ssid, ssid, sizeof(s_wifi_cfg.sta.ssid));
+
+    /* Using strlcpy allows both max passphrase length (63 bytes) and ensures null termination
+     * because size of wifi_cfg->sta.password is 64 bytes (1 extra byte for null character) */
+    memset(s_wifi_cfg.sta.password, 0, sizeof(s_wifi_cfg.sta.password));
+    strlcpy((char *) s_wifi_cfg.sta.password, passwd, sizeof(s_wifi_cfg.sta.password));
+
+    ESP_LOGD(TAG, "BBBBB Custum Wi-Fi ssid: %s", s_wifi_cfg.sta.ssid);
+    ESP_LOGD(TAG, "CCCCC Custum Wi-Fi passwd: %s", s_wifi_cfg.sta.password);
+
+    wifi_prov_mgr_configure_sta(&s_wifi_cfg);
+
+    ESP_LOGI(TAG, "Got user_id = %s, position_id = %s", user_id, position_id);
+    if (esp_rmaker_start_user_node_mapping(user_id, position_id) != ESP_OK) {
+        ESP_LOGE(TAG, "Sending start user node mapping fail");
+    } else {
+        ESP_LOGI(TAG, "Sending start user node mapping success");
+    }
+
+    char response[] = "SUCCESS";
+    *outbuf = (uint8_t *)strdup(response);
+    if (*outbuf == NULL) {
+        ESP_LOGE(TAG, "System out of memory");
+        return ESP_ERR_NO_MEM;
+    }
+    *outlen = strlen(response) + 1; /* +1 for NULL terminating byte */
+
+CleanUp:
+    ESP_ERROR_CHECK(ret);
+    json_parse_end(&jctx);
+
+    return ESP_OK;
+}
+
 esp_err_t app_wifi_start_timer(void)
 {
     if (prov_timeout_period == 0) {
@@ -408,7 +505,11 @@ esp_err_t app_wifi_start(app_wifi_pop_type_t pop_type)
          *          using X25519 key exchange and proof of possession (pop) and AES-CTR
          *          for encryption/decryption of messages.
          */
+#if USE_YS_MQTT_BROKER
+        wifi_prov_security_t security = WIFI_PROV_SECURITY_0;
+#else
         wifi_prov_security_t security = WIFI_PROV_SECURITY_1;
+#endif 
 
         /* Do we want a proof-of-possession (ignored if Security 0 is selected):
          *      - this should be a string with length > 0
@@ -442,8 +543,22 @@ esp_err_t app_wifi_start(app_wifi_pop_type_t pop_type)
         }
 #endif /* CONFIG_APP_WIFI_PROV_TRANSPORT_BLE */
 
+        /* An optional endpoint that applications can create if they expect to
+         * get some additional custom data during provisioning workflow.
+         * The endpoint name can be anything of your choice.
+         * This call must be made before starting the provisioning.
+         */
+        wifi_prov_mgr_endpoint_create("custom-data");
+
         /* Start provisioning service */
         ESP_ERROR_CHECK(wifi_prov_mgr_start_provisioning(security, pop, service_name, service_key));
+        
+        /* The handler for the optional endpoint created above.
+         * This call must be made after starting the provisioning, and only if the endpoint
+         * has already been created above.
+         */
+        wifi_prov_mgr_endpoint_register("custom-data", custom_prov_data_handler, NULL);
+
         /* Print QR code for provisioning */
 #ifdef CONFIG_APP_WIFI_PROV_TRANSPORT_BLE
         app_wifi_print_qr(service_name, pop, PROV_TRANSPORT_BLE);

@@ -19,6 +19,7 @@
 #include <esp_rmaker_standard_types.h>
 #include <esp_rmaker_standard_services.h>
 #include <esp_rmaker_utils.h>
+#include "user_debug_header.h"
 
 static const char *TAG = "esp_rmaker_time_service";
 
@@ -71,6 +72,11 @@ static esp_err_t esp_rmaker_time_add_service(const char *tz, const char *tz_posi
 
 esp_err_t esp_rmaker_timezone_service_enable(void)
 {
+#if USE_YS_MQTT_BROKER
+    esp_rmaker_time_set_timezone("Asia/Shanghai");
+    esp_rmaker_time_set_timezone_posix("CST-8");
+#endif
+
     char *tz_posix = esp_rmaker_time_get_timezone_posix();
     char *tz = esp_rmaker_time_get_timezone();
     esp_err_t err = esp_rmaker_time_add_service(tz, tz_posix);

@@ -1,0 +1,9 @@
+menu "User Debug Header"
+
+    config USER_DEBUG_HEADER_ENABLE
+        bool "Enable User Debug Header"
+        default y
+        help
+            Disable the user debug header.
+            
+endmenu

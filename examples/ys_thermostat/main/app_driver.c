@@ -32,42 +32,21 @@
 #define BUTTON_GPIO          CONFIG_EXAMPLE_BOARD_BUTTON_GPIO
 #define BUTTON_ACTIVE_LEVEL  0
 
-#define DEFAULT_HUE         180
-#define DEFAULT_SATURATION  100
-#define DEFAULT_BRIGHTNESS  ( 20 * 3)
-
 #define WIFI_RESET_BUTTON_TIMEOUT       3
-#define FACTORY_RESET_BUTTON_TIMEOUT    10
+#define FACTORY_RESET_BUTTON_TIMEOUT    6
 
 static const char *TAG = "app_driver";
 
+#if USE_CHIP_TEMPERATURE_SENSOR
 static temperature_sensor_handle_t g_temp_sensor = NULL;
+#endif
 
-// static uint16_t g_hue = DEFAULT_HUE;
-// static uint16_t g_saturation = DEFAULT_SATURATION;
-// static uint16_t g_value = DEFAULT_BRIGHTNESS;
-
-const char *direction_list[DIRECTION_CNT] = {"Auto","Low","Medinum","High"};
 const char *mode_list[MODE_CNT] = {"Auto","Cold","Heat","Wind","Dry"};
 const char *scene_list[SCENE_CNT] = {"None", "Outdoor", "Sleep"};
 
 thermostat_params_t g_thermostat_params = {
-    .power_state = true,
-    .valve_state = true,
-    .alarm_state = false,
-    .display_time = true,
-    .display_temp = true,
-    .locker_state = false,
-    .house_state = false,
-    .warning_state = false,
-    .local_temp = 26.0,
-    .setpoint_temp = 16.0,
+    .display = true,
     .setpoint_blink_cnt = 0,
-    .speed = 0,
-    .direction = "Auto",
-    .work_mode = E_WORK_MODE_AUTO,
-    .time = {0},
-    .scene = E_SCENE_NONE,
 };
 
 static TimerHandle_t beep_timer;
@@ -217,6 +196,7 @@ float Vt_to_temp(int input_Vt_mv)
     return temp;
 }
 
+#if USE_CHIP_TEMPERATURE_SENSOR
 float app_temperature_sensor_get_value(void)
 {
     if (g_temp_sensor) {
@@ -240,21 +220,7 @@ temperature_sensor_handle_t app_temperature_sensor_init(void)
     ESP_ERROR_CHECK(temperature_sensor_enable(temp_sensor));
     return temp_sensor;
 }
-
-esp_err_t app_thermostat_set_power_state(bool bOn)
-{
-    ESP_LOGI(TAG, "set power: %d", bOn);
-
-    g_thermostat_params.power_state = bOn;
-    
-    // if (power) {
-    //     ws2812_led_set_hsv(g_hue, g_saturation, g_value);
-    // } else {
-    //     ws2812_led_clear();
-    // }
-
-    return ESP_OK;
-}
+#endif
 
 esp_err_t app_thermostat_set_setpoint_temperature(float setpoint_temp)
 {
@@ -262,66 +228,11 @@ esp_err_t app_thermostat_set_setpoint_temperature(float setpoint_temp)
 
     g_thermostat_params.setpoint_temp = setpoint_temp;
 
-    // g_hue = setpoint_temp * 360 / 40;
-    // ws2812_led_set_hsv(g_hue, g_saturation, g_value);
-
     if(g_thermostat_params.setpoint_blink_timer) {
         ESP_LOGW(TAG, "blink timer start");
-        g_thermostat_params.display_temp = 0;
         g_thermostat_params.setpoint_blink_cnt = 10;
         if(xTimerStart(g_thermostat_params.setpoint_blink_timer, 0) != pdTRUE) {
             ESP_LOGE(TAG, "start setpoint blink timer error");
-        }
-    }
-
-    return ESP_OK;
-}
-
-esp_err_t app_thermostat_set_speed(uint8_t speed)
-{
-    ESP_LOGI(TAG, "set speed: %d", speed);
-
-    g_thermostat_params.speed = speed;
-
-    // g_value = 20 * speed;
-    // return ws2812_led_set_hsv(g_hue, g_saturation, g_value);
-
-    return ESP_OK;
-}
-
-esp_err_t app_thermostat_set_direction(char* direction)
-{ 
-    ESP_LOGI(TAG, "set direction: %s", direction);
-
-    memset(g_thermostat_params.direction, 0, sizeof(g_thermostat_params.direction));
-    strcpy(g_thermostat_params.direction, direction);
-
-    // for(int i = 0; i < DIRECTION_CNT; i++) {
-    //     if (strcmp(direction, direction_list[i]) == 0) {
-    //         ESP_LOGI(TAG, "set direction to %s", direction_list[i]);
-    //         break;
-    //     }
-    // }
-
-    return ESP_OK;
-}
-
-esp_err_t app_thermostat_set_work_mode(char* work_mode)
-{
-    ESP_LOGI(TAG, "set work mode: %s", work_mode);
-
-    // for(int i = 0; i < MODE_CNT; i++) {
-    //     if (strcmp(mode, mode_list[i]) == 0) {
-    //         ESP_LOGI(TAG, "set mode to %s", mode_list[i]);
-    //         break;
-    //     }
-    // }
-
-    for(int i = 0; i < MODE_CNT; i++) {
-        if(0 == strcmp(work_mode, mode_list[i])) {
-            ESP_LOGI(TAG, "set work mode: %d", i);
-            g_thermostat_params.work_mode = i;
-            break;
         }
     }
 
@@ -342,148 +253,50 @@ void get_current_time_second(struct tm *ptimeinfo)
     // ESP_LOGI(TAG, "[%s]", strftime_buf);
 }
 
-float app_thermostat_get_current_temperature(void)
+float app_thermostat_get_current_temperature_and_time(void)
 {
+    lcd_time_t lcd_time = {0};
     struct tm timeinfo;
+
     get_current_time_second(&timeinfo);
-    g_thermostat_params.time.hour = timeinfo.tm_hour;
-    g_thermostat_params.time.min = timeinfo.tm_min;
-    g_thermostat_params.time.wday = timeinfo.tm_wday;
 
-    // g_thermostat_params.local_temp = app_temperature_sensor_get_value();
-    g_thermostat_params.local_temp = Vt_to_temp(adc_read_voltage_mv());
+    lcd_time.hour = timeinfo.tm_hour;
+    lcd_time.min = timeinfo.tm_min;
+    lcd_time.wday = timeinfo.tm_wday;
+    lcd_set_time(&lcd_time);
 
-    return g_thermostat_params.local_temp;
+#if USE_CHIP_TEMPERATURE_SENSOR
+    float local_temp = app_temperature_sensor_get_value();
+#else
+    float local_temp = Vt_to_temp(adc_read_voltage_mv());
+#endif
+    g_thermostat_params.local_temp = local_temp;
+
+    return local_temp;
 }
 
 void app_thermostat_lcd_update(bool beep)
 {
-	if (g_thermostat_params.power_state) {
+    if (g_thermostat_params.display) {
         if(g_thermostat_params.setpoint_blink_cnt) {
-            if(g_thermostat_params.display_temp) {
-                lcd_set_temperature(g_thermostat_params.setpoint_temp);
-            } else {
+            if(g_thermostat_params.setpoint_blink_cnt % 2) {
                 lcd_clear_temperature();
+            } else {
+                lcd_set_temperature(g_thermostat_params.setpoint_temp);
             }
         } else {
             lcd_set_temperature(g_thermostat_params.local_temp);
         }
-		lcd_set_wind_speed(g_thermostat_params.speed);
-		lcd_set_valve_state(g_thermostat_params.valve_state);
-		if(g_thermostat_params.display_time) {
-			lcd_set_time(&g_thermostat_params.time);
-		} else {
-			lcd_clear_time();
-		}
-		lcd_set_work_mode(g_thermostat_params.work_mode);
-		lcd_set_alarm_state(g_thermostat_params.alarm_state);
-		lcd_set_locker_state(g_thermostat_params.locker_state);
-		lcd_set_house_state(g_thermostat_params.house_state);
-		lcd_set_scene(g_thermostat_params.scene);
-		lcd_set_warning_state(g_thermostat_params.warning_state);
-		lcd_update();
+        lcd_update();
         ESP_LOGD(TAG, "lcd update");
-	} else {
-		lcd_clear();
+    } else {
+        lcd_clear();
         ESP_LOGD(TAG, "lcd clear");
-	}
+    }
+
     if(beep) {
         lcd_beep_once();
     }
-}
-
-esp_err_t app_thermostat_set_scene(char* scene)
-{
-    ESP_LOGI(TAG, "set scene: %s", scene);
-
-    for(int i = 0; i < MODE_CNT; i++) {
-        if(0 == strcmp(scene, scene_list[i])) {
-            ESP_LOGI(TAG, "set scene: %d", i);
-            g_thermostat_params.scene = i;
-            break;
-        }
-    }
-
-    return ESP_OK;
-}
-
-esp_err_t app_thermostat_set_warning_state(bool bOn)
-{
-    ESP_LOGI(TAG, "set warning state: %d", bOn);
-
-    g_thermostat_params.warning_state = bOn;
-
-    return ESP_OK;
-}
-
-esp_err_t app_thermostat_set_display_time(bool bOn)
-{
-    ESP_LOGI(TAG, "set display time: %d", bOn);
-
-    g_thermostat_params.display_time = bOn;
-
-    return ESP_OK;
-}
-
-esp_err_t app_thermostat_set_alarm_state(bool bOn)
-{
-    ESP_LOGI(TAG, "set alarm state: %d", bOn);
-
-    g_thermostat_params.alarm_state = bOn;
-
-    return ESP_OK;
-}
-
-esp_err_t app_thermostat_set_house_state(bool bOn)
-{
-    ESP_LOGI(TAG, "set house state: %d", bOn);
-
-    g_thermostat_params.house_state = bOn;
-
-    return ESP_OK;
-}
-
-esp_err_t app_thermostat_set_locker_state(bool bOn)
-{
-    ESP_LOGI(TAG, "set locker state: %d", bOn);
-
-    g_thermostat_params.locker_state = bOn;
-
-    return ESP_OK;
-}
-
-esp_err_t app_thermostat_set_valve_state(bool bOn)
-{
-    ESP_LOGI(TAG, "set valve state: %d", bOn);
-
-    g_thermostat_params.valve_state = bOn;
-
-    return ESP_OK;
-}
-
-esp_err_t app_thermostat_restore_params(thermostat_params_t *pParams)
-{
-    // restore param
-
-
-    // set params to hw
-    app_thermostat_set_power_state(g_thermostat_params.power_state);
-    // app_thermostat_set_locker_state(g_thermostat_params.locker_state);
-    // app_thermostat_set_house_state(g_thermostat_params.house_state);
-    // app_thermostat_set_alarm_state(g_thermostat_params.alarm_state);
-    // app_thermostat_set_warning_state(g_thermostat_params.warning_state);
-    app_thermostat_set_setpoint_temperature(g_thermostat_params.setpoint_temp);
-    // app_thermostat_set_display_time(g_thermostat_params.display_time);
-    app_thermostat_set_speed(g_thermostat_params.speed);
-    char default_direction[10] = {0};
-    strcpy(default_direction, g_thermostat_params.direction);
-    app_thermostat_set_direction(default_direction);
-    app_thermostat_set_work_mode(get_workmode_str(g_thermostat_params.work_mode));
-    app_thermostat_set_valve_state(g_thermostat_params.valve_state);
-    // app_thermostat_set_scene(get_scene_str(g_thermostat_params.scene));
-    app_thermostat_get_current_temperature();
-
-    return ESP_OK;
 }
 
 static void beep_callback( TimerHandle_t pxTimer )
@@ -509,11 +322,7 @@ static void setpoint_blink_callback( TimerHandle_t pxTimer )
         // Do not use a block time if calling a timer API function from a
         // timer callback function, as doing so could cause a deadlock!
         ESP_LOGW(TAG, "blink timer stop");
-        g_thermostat_params.display_temp = 1;
         xTimerStop( pxTimer, 0 );
-    } else {
-        g_thermostat_params.display_temp = !g_thermostat_params.display_temp;
-        ESP_LOGW(TAG, "blink timer display %d", g_thermostat_params.display_temp);
     }
 
     app_thermostat_lcd_update(0);
@@ -521,59 +330,65 @@ static void setpoint_blink_callback( TimerHandle_t pxTimer )
 
 esp_err_t app_thermostat_init(void)
 {
-    // hw init
-    // esp_err_t err = ws2812_led_init();
-    // if (err != ESP_OK) {
-    //     return err;
-    // }
+    /** hw init **/
 
+    // init adc for temperature sensor
+#if USE_CHIP_TEMPERATURE_SENSOR
+    g_temp_sensor = app_temperature_sensor_init();
+    if (!g_temp_sensor) {
+        ESP_LOGE(TAG, "init temperature sensor error !!!");
+        return -1;
+    }
+#else
     adc_init();
-
-    lcd_init();
-
-    // g_temp_sensor = app_temperature_sensor_init();
-    // if (!g_temp_sensor) {
-    //     ESP_LOGE(TAG, "init temperature sensor error !!!");
-    //     return -1;
-    // }
-
-    // restore saved params
-    app_thermostat_restore_params(&g_thermostat_params);
+#endif
 
     // create beep timer
     beep_timer = xTimerCreate("beep_tm", (100) / portTICK_PERIOD_MS,
                             pdFALSE, NULL, beep_callback);
 
+    // init lcd display
+    lcd_init();
+
     // create setpoint blink timer
     g_thermostat_params.setpoint_blink_timer = xTimerCreate("setpoint_blink_tm", (500) / portTICK_PERIOD_MS,
                             pdTRUE, NULL, setpoint_blink_callback);
-
-    // update lcd
-    app_thermostat_lcd_update(1);
 
     return ESP_OK;
 }
 
 static void push_btn_cb(void *arg)
 {
+    esp_rmaker_param_t *param = NULL;
+    esp_rmaker_param_val_t *val = NULL;
+    esp_rmaker_param_val_t new_val = {0};
     char *str = (char*)arg;
     ESP_LOGI(TAG, "tap %s", str);
 
     if(0 == strcmp(str, "power")) {
-        app_thermostat_set_power_state(!g_thermostat_params.power_state);
-        app_thermostat_lcd_update(1);
+        param = esp_rmaker_device_get_param_by_name(thermostat_device, ESP_RMAKER_DEF_POWER_NAME);
+        val = esp_rmaker_param_get_val(param);
+        new_val = esp_rmaker_bool(val->val.b);
+
+        new_val.val.b = !new_val.val.b;
+        g_thermostat_params.display = new_val.val.b;
     } else if(0 == strcmp(str, "speed")) {
-        g_thermostat_params.speed += 1;
-        if(g_thermostat_params.speed > 3) {
-            g_thermostat_params.speed = 0;
+        param = esp_rmaker_device_get_param_by_name(thermostat_device, ESP_RMAKER_DEF_SPEED_NAME);
+        val = esp_rmaker_param_get_val(param);
+        new_val = esp_rmaker_int(val->val.i);
+
+        if(new_val.val.i++ > 3) {
+            new_val.val.i = 0;
         }
-        app_thermostat_set_speed(g_thermostat_params.speed);
-        app_thermostat_lcd_update(1);
+        lcd_set_wind_speed(new_val.val.i); 
     } else if(0 == strcmp(str, "up")) {
 
     } else if(0 == strcmp(str, "down")) {
 
     }
+
+    esp_rmaker_param_update_and_report(param, new_val);
+    app_thermostat_lcd_update(1);
 }
 
 void button_init(void)

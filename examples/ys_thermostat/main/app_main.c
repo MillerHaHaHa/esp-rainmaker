@@ -28,8 +28,6 @@
 
 #include "app_priv.h"
 
-#define ESP_RMAKER_DEF_VALVE_NAME    "Valve"
-
 static const char *TAG = "app_main";
 
 esp_rmaker_device_t *thermostat_device;
@@ -49,7 +47,7 @@ static esp_err_t write_cb(const esp_rmaker_device_t *device, const esp_rmaker_pa
     if (strcmp(param_name, ESP_RMAKER_DEF_POWER_NAME) == 0) {
         ESP_LOGI(TAG, "Received value = %s for %s - %s",
                 val.val.b? "true" : "false", device_name, param_name);
-        app_thermostat_set_power_state(val.val.b);
+        g_thermostat_params.display = val.val.b;
     } else if (strcmp(param_name, ESP_RMAKER_DEF_SETPOINT_TEMPERATURE_NAME) == 0) {
         ESP_LOGI(TAG, "Received value = %f for %s - %s",
                 val.val.f, device_name, param_name);
@@ -57,25 +55,24 @@ static esp_err_t write_cb(const esp_rmaker_device_t *device, const esp_rmaker_pa
     } else if (strcmp(param_name, ESP_RMAKER_DEF_SPEED_NAME) == 0) {
         ESP_LOGI(TAG, "Received value = %d for %s - %s",
                 val.val.i, device_name, param_name);
-        app_thermostat_set_speed(val.val.i);
-    } else if (strcmp(param_name, ESP_RMAKER_DEF_DIRECTION_NAME) == 0) {
-        ESP_LOGI(TAG, "Received value = %s for %s - %s",
-                val.val.s, device_name, param_name);
-        app_thermostat_set_direction(val.val.s);
+        lcd_set_wind_speed(val.val.i);
     } else if (strcmp(param_name, ESP_RMAKER_DEF_MODE_CONTROL_NAME) == 0) {
-        ESP_LOGI(TAG, "Received value = %s for %s - %s",
-                val.val.s, device_name, param_name);
-        app_thermostat_set_work_mode(val.val.s);
+        ESP_LOGI(TAG, "Received value = %d for %s - %s",
+                val.val.i, device_name, param_name);
+        ESP_LOGI(TAG, "set work mode: %s", get_workmode_str(val.val.i));
+        lcd_set_work_mode(val.val.i);
     } else if (strcmp(param_name, ESP_RMAKER_DEF_VALVE_NAME) == 0) {
         ESP_LOGI(TAG, "Received value = %s for %s - %s",
                 val.val.b? "true" : "false", device_name, param_name);
-        app_thermostat_set_valve_state(val.val.b);
+        lcd_set_valve_state(val.val.b);
     } else {
         /* Silently ignoring invalid params */
         return ESP_OK;
     }
-    app_thermostat_lcd_update(1);
-    esp_rmaker_param_update_and_report(param, val);
+    if(ctx->src != ESP_RMAKER_REQ_SRC_INIT) {
+        esp_rmaker_param_update_and_report(param, val);
+        app_thermostat_lcd_update(1);
+    }
     return ESP_OK;
 }
 
@@ -83,7 +80,7 @@ static void app_temperature_update(TimerHandle_t handle)
 {
     ESP_LOGI(TAG, "timer update temperature");
     esp_rmaker_param_update_and_report(esp_rmaker_device_get_param_by_type(thermostat_device, ESP_RMAKER_PARAM_TEMPERATURE), 
-                                        esp_rmaker_float(app_thermostat_get_current_temperature()));
+                                        esp_rmaker_float(app_thermostat_get_current_temperature_and_time()));
     app_thermostat_lcd_update(0);
 }
 
@@ -101,6 +98,12 @@ static esp_err_t app_sensor_update_timer_enable(void)
 void app_main()
 {
     esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("app_wifi", ESP_LOG_DEBUG);
+    esp_log_level_set("esp_rmaker_user_mapping", ESP_LOG_DEBUG);
+    esp_log_level_set("protocomm_nimble", ESP_LOG_DEBUG);
+    esp_log_level_set("protocomm", ESP_LOG_DEBUG);
+    esp_log_level_set("WiFiProvConfig", ESP_LOG_DEBUG);
+    esp_log_level_set("proto_wifi_scan", ESP_LOG_DEBUG);
 
     /* Initialize Application specific hardware drivers and
      * set initial state.
@@ -137,19 +140,21 @@ void app_main()
      * 1. power
      * 2. setpoint temperature
      * 3. speed
-     * 4. direction
-     * 5. mode
-     * 7. temperature
-     * 8. valve
+     * 4. mode
+     * 5. temperature
+     * 6. valve
      */
-    thermostat_device = esp_rmaker_thermostat_device_create("Thermostat", NULL, g_thermostat_params.power_state);
+#if USE_YS_MQTT_BROKER
+    thermostat_device = esp_rmaker_thermostat_device_create("thermostat", NULL, g_thermostat_params.power_state);
+#else
+    thermostat_device = esp_rmaker_thermostat_device_create("Thermostat", NULL, 1);
+#endif
     esp_rmaker_device_add_cb(thermostat_device, write_cb, NULL);
-    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_setpoint_temperature_param_create(ESP_RMAKER_DEF_SETPOINT_TEMPERATURE_NAME, g_thermostat_params.setpoint_temp));
-    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_speed_param_create(ESP_RMAKER_DEF_SPEED_NAME, g_thermostat_params.speed));
-    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_direction_param_custom_create(ESP_RMAKER_DEF_DIRECTION_NAME, g_thermostat_params.direction, direction_list, DIRECTION_CNT));
-    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_mode_param_create(ESP_RMAKER_DEF_MODE_CONTROL_NAME, get_workmode_str(g_thermostat_params.work_mode), mode_list, MODE_CNT));
-    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_temperature_param_create(ESP_RMAKER_DEF_TEMPERATURE_NAME, g_thermostat_params.local_temp));
-    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_power_param_create(ESP_RMAKER_DEF_VALVE_NAME, g_thermostat_params.valve_state));
+    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_setpoint_temperature_param_create(ESP_RMAKER_DEF_SETPOINT_TEMPERATURE_NAME, 0));
+    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_speed_param_create(ESP_RMAKER_DEF_SPEED_NAME, (int) E_WIND_MODE_AUTO));
+    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_mode_param_create(ESP_RMAKER_DEF_MODE_CONTROL_NAME, (int) E_WORK_MODE_AUTO));
+    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_temperature_param_create(ESP_RMAKER_DEF_TEMPERATURE_NAME, app_thermostat_get_current_temperature_and_time()));
+    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_power_param_create(ESP_RMAKER_DEF_VALVE_NAME, 0));
     esp_rmaker_node_add_device(node, thermostat_device);
 
     /* Enable test */
@@ -179,6 +184,9 @@ void app_main()
 
     /* enable params update timer */
     app_sensor_update_timer_enable();
+
+    /* Update lcd after restore backup data */
+    app_thermostat_lcd_update(1);
 
     /* Start the Wi-Fi.
      * If the node is provisioned, it will start connection attempts,

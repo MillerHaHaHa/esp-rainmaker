@@ -27,7 +27,7 @@ esp_rmaker_param_t *esp_rmaker_name_param_create(const char *param_name, const c
 esp_rmaker_param_t *esp_rmaker_power_param_create(const char *param_name, bool val)
 {
     esp_rmaker_param_t *param = esp_rmaker_param_create(param_name, ESP_RMAKER_PARAM_POWER,
-            esp_rmaker_bool(val), PROP_FLAG_READ | PROP_FLAG_WRITE);
+            esp_rmaker_bool(val), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
     if (param) {
         esp_rmaker_param_add_ui_type(param, ESP_RMAKER_UI_TOGGLE);
     }
@@ -103,7 +103,7 @@ esp_rmaker_param_t *esp_rmaker_direction_param_create(const char *param_name, in
 esp_rmaker_param_t *esp_rmaker_speed_param_create(const char *param_name, int val)
 {
     esp_rmaker_param_t *param = esp_rmaker_param_create(param_name, ESP_RMAKER_PARAM_SPEED,
-            esp_rmaker_int(val), PROP_FLAG_READ | PROP_FLAG_WRITE);
+            esp_rmaker_int(val), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
     if (param) {
         esp_rmaker_param_add_ui_type(param, ESP_RMAKER_UI_SLIDER);
         esp_rmaker_param_add_bounds(param, esp_rmaker_int(0), esp_rmaker_int(3), esp_rmaker_int(1));
@@ -210,7 +210,7 @@ esp_rmaker_param_t *esp_rmaker_local_control_type_param_create(const char *param
 esp_rmaker_param_t *esp_rmaker_setpoint_temperature_param_create(const char *param_name, float val)
 {
     esp_rmaker_param_t *param = esp_rmaker_param_create(param_name, ESP_RMAKER_PARAM_SETPOINT_TEMPERATURE,
-            esp_rmaker_float(val), PROP_FLAG_READ | PROP_FLAG_WRITE);
+            esp_rmaker_float(val), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
     if (param) {
         esp_rmaker_param_add_ui_type(param, ESP_RMAKER_UI_SLIDER);
         esp_rmaker_param_add_bounds(param, esp_rmaker_float(0), esp_rmaker_float(40), esp_rmaker_float(0.5));
@@ -218,24 +218,24 @@ esp_rmaker_param_t *esp_rmaker_setpoint_temperature_param_create(const char *par
     return param;
 }
 
-esp_rmaker_param_t *esp_rmaker_mode_param_create(const char *param_name, const char* default_val, const char* val[], uint8_t count)
+esp_rmaker_param_t *esp_rmaker_mode_param_create(const char *param_name, int val)
 {
     esp_rmaker_param_t *param = esp_rmaker_param_create(param_name, ESP_RMAKER_PARAM_MODE,
-            esp_rmaker_str(default_val), PROP_FLAG_READ | PROP_FLAG_WRITE);
+            esp_rmaker_int(val), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
     if (param) {
         esp_rmaker_param_add_ui_type(param, ESP_RMAKER_UI_DROPDOWN);
-        esp_rmaker_param_add_valid_str_list(param, val, count);
+        esp_rmaker_param_add_bounds(param, esp_rmaker_int(0), esp_rmaker_int(4), esp_rmaker_int(1));
     }
     return param;
 }
 
-esp_rmaker_param_t *esp_rmaker_direction_param_custom_create(const char *param_name, const char* default_val, const char* val[], uint8_t count)
+esp_rmaker_param_t *esp_rmaker_direction_param_custom_create(const char *param_name, int val)
 {
     esp_rmaker_param_t *param = esp_rmaker_param_create(param_name, ESP_RMAKER_PARAM_DIRECTION,
-            esp_rmaker_str(default_val), PROP_FLAG_READ | PROP_FLAG_WRITE);
+            esp_rmaker_int(val), PROP_FLAG_READ | PROP_FLAG_WRITE);
     if (param) {
         esp_rmaker_param_add_ui_type(param, ESP_RMAKER_UI_DROPDOWN);
-        esp_rmaker_param_add_valid_str_list(param, val, count);
+        esp_rmaker_param_add_bounds(param, esp_rmaker_int(0), esp_rmaker_int(4), esp_rmaker_int(1));
     }
     return param;
 }

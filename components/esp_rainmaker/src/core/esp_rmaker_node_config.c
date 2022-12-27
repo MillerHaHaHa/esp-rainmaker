@@ -20,6 +20,7 @@
 #include "esp_rmaker_internal.h"
 #include "esp_rmaker_mqtt.h"
 #include "esp_rmaker_mqtt_topics.h"
+#include "user_debug_header.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
 #include <esp_app_desc.h>
@@ -243,8 +244,10 @@ int __esp_rmaker_get_node_config(char *buf, size_t buf_size)
     json_gen_start_object(&jstr);
     esp_rmaker_report_info(&jstr);
     esp_rmaker_report_node_attributes(&jstr);
+#if !USE_YS_MQTT_BROKER
     esp_rmaker_report_devices_or_services(&jstr, "devices");
     esp_rmaker_report_devices_or_services(&jstr, "services");
+#endif
     if (json_gen_end_object(&jstr) < 0) {
         return -1;
     }
@@ -282,8 +285,9 @@ esp_err_t esp_rmaker_report_node_config()
     }
     char publish_topic[MQTT_TOPIC_BUFFER_SIZE];
     esp_rmaker_create_mqtt_topic(publish_topic, MQTT_TOPIC_BUFFER_SIZE, NODE_CONFIG_TOPIC_SUFFIX, NODE_CONFIG_TOPIC_RULE);
+    ESP_LOGI(TAG, "MQTT Publish Topic: %s", publish_topic);
     ESP_LOGI(TAG, "Reporting Node Configuration of length %d bytes.", strlen(publish_payload));
-    ESP_LOGD(TAG, "%s", publish_payload);
+    ESP_LOGI(TAG, "MQTT Publish: %s", publish_payload);
     esp_err_t ret = esp_rmaker_mqtt_publish(publish_topic, publish_payload, strlen(publish_payload),
                         RMAKER_MQTT_QOS1, NULL);
     free(publish_payload);

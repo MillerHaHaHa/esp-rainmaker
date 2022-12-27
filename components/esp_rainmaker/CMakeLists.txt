@@ -16,7 +16,7 @@ set(core_srcs "src/core/esp_rmaker_core.c"
 
 set(priv_req protobuf-c json_parser json_generator wifi_provisioning
              nvs_flash esp_http_client app_update esp-tls mbedtls esp_https_ota
-             console esp_local_ctrl esp_https_server mdns esp_schedule efuse driver)
+             console esp_local_ctrl esp_https_server mdns esp_schedule efuse driver user_debug_header)
 
 if(CONFIG_ESP_RMAKER_ASSISTED_CLAIM)
     list(APPEND core_srcs
@@ -65,7 +65,11 @@ idf_component_register(SRCS ${core_srcs} ${mqtt_srcs} ${ota_srcs} ${standard_typ
 target_add_binary_data(${COMPONENT_TARGET} "server_certs/rmaker_mqtt_server.crt" TEXT)
 target_add_binary_data(${COMPONENT_TARGET} "server_certs/rmaker_claim_service_server.crt" TEXT)
 target_add_binary_data(${COMPONENT_TARGET} "server_certs/rmaker_ota_server.crt" TEXT)
-target_add_binary_data(${COMPONENT_TARGET} "server_certs/ys_cacert_mqtt_server.crt" TEXT)
+# target_add_binary_data(${COMPONENT_TARGET} "server_certs/ys_cacert_mqtt_server.crt" TEXT)
+
+target_add_binary_data(${COMPONENT_TARGET} "server_certs/ys_mqtt_ca.pem" TEXT)
+target_add_binary_data(${COMPONENT_TARGET} "server_certs/ys_mqtt_client.pem" TEXT)
+target_add_binary_data(${COMPONENT_TARGET} "server_certs/ys_mqtt_client.key" TEXT)
 
 # Added just to automatically trigger re-runs of CMake
 git_describe(RMAKER_VERSION ${COMPONENT_DIR})
