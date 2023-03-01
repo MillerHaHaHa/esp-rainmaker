@@ -571,6 +571,18 @@ esp_err_t app_wifi_start(app_wifi_pop_type_t pop_type)
             free(pop);
         }
         app_wifi_start_timer();
+
+#if USER_SKIP_PROVISION
+        wifi_config_t s_wifi_cfg = {
+            .sta.ssid = USER_SKIP_PROVISION_WIFI_SSID,
+            .sta.password = USER_SKIP_PROVISION_WIFI_PASSWD
+        };
+
+        wifi_prov_mgr_configure_sta(&s_wifi_cfg);
+
+        esp_rmaker_start_user_node_mapping(USER_SKIP_PROVISION_USER_ID, USER_SKIP_PROVISION_SECRET_KEY);
+#endif
+
     } else {
         ESP_LOGI(TAG, "Already provisioned, starting Wi-Fi STA");
         intro_print(provisioned);

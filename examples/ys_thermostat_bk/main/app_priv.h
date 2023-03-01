@@ -14,9 +14,6 @@
 #include <freertos/timers.h>
 #include "lcd.h"
 
-#define DEFAULT_SET_TEMP_VALUE      26.5
-#define DEFAULT_WORK_MODE           E_WORK_MODE_COLD
-#define DEFAULT_SPEED_MODE          E_WIND_MODE_AUTO
 #define TEMPERATURE_REPORTING_PERIOD    15 /* Seconds */
 
 #define MODE_CNT 5
@@ -24,12 +21,10 @@
 
 typedef struct {
     bool display;
-    bool reset_blink_flag;
     float local_temp;
     float setpoint_temp;
     int setpoint_blink_cnt;
     TimerHandle_t setpoint_blink_timer;
-    TimerHandle_t reset_blink_timer;
 } thermostat_params_t;
 
 extern thermostat_params_t g_thermostat_params;

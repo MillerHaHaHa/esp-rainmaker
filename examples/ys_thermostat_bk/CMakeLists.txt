@@ -14,3 +14,4 @@ set(EXTRA_COMPONENT_DIRS ${RMAKER_PATH}/components/esp-insights/components ${RMA
 set(PROJECT_VER "1.0")
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(ys.thermostat.v1)
+

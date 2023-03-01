@@ -98,6 +98,19 @@ esp_rmaker_param_t *esp_rmaker_name_param_create(const char *param_name, const c
 esp_rmaker_param_t *esp_rmaker_power_param_create(const char *param_name, bool val);
 
 /**
+ * @brief Create standard Valve param
+ * 
+ * This will create the standard valve parameter.
+ * 
+ * @param[in] param_name Name of the parameter
+ * @param[in] val Default Value of the parameter
+ * 
+ * @return Parameter handle on success.
+ * @return NULL in case of failures.
+ */
+esp_rmaker_param_t *esp_rmaker_valve_param_create(const char *param_name, bool val);
+
+/**
  * Create standard Brightness param
  *
  * This will create the standard brightness parameter.

@@ -64,6 +64,5 @@ void lcd_set_warning_state(bool bOn);
 void lcd_beep(bool bOn);
 void lcd_update(void);
 void lcd_clear(void);
-void lcd_display(void);
 
 #endif // _LCD_H_

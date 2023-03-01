@@ -135,10 +135,9 @@ void lcd_set_warning_state(bool bOn)
 {
 	uint8_t data = 0;
 
+	data = ht1621_get_buffer(1) & 0xFE;
 	if(bOn) {
-		data = ht1621_get_buffer(1) | 0x01;
-	} else {
-		data = ht1621_get_buffer(1) & 0xFE;
+		data |= 0x01;
 	}
 
 	ht1621_set_buffer(1, data);
@@ -148,10 +147,9 @@ void lcd_set_locker_state(bool bOn)
 {
 	uint8_t data = 0;
 
-	if (bOn) {
-		data = ht1621_get_buffer(15) | 0x10;
-	} else {
-		data = ht1621_get_buffer(15) & 0xEF;
+	data = ht1621_get_buffer(15) & 0xEF;
+	if(bOn) {
+		data |= 0x10;
 	}
 
 	ht1621_set_buffer(15, data);
@@ -161,10 +159,9 @@ void lcd_set_house_state(bool bOn)
 {
 	uint8_t data = 0;
 
-	if (bOn) {
-		data = ht1621_get_buffer(5) | 0x02;
-	} else {
-		data = ht1621_get_buffer(5) & 0xFD;
+	data = ht1621_get_buffer(5) & 0xF9;
+	if(bOn) {
+		data |= 0x06;
 	}
 
 	ht1621_set_buffer(5, data);
@@ -174,10 +171,9 @@ void lcd_set_alarm_state(bool bOn)
 {
 	uint8_t data = 0;
 
+	data = ht1621_get_buffer(5) & 0xF7;
 	if(bOn) {
-		data = ht1621_get_buffer(5) | 0x08;
-	} else {
-		data = ht1621_get_buffer(5) & 0xF7;
+		data |= 0x08;
 	}
 
 	ht1621_set_buffer(5, data);
@@ -291,9 +287,8 @@ void lcd_clear_temperature(void)
 
 void lcd_set_temperature(float temp)
 {
-	if(temp >= 100 || temp < 0) {
+	if(temp >= 100 || temp <= -100) {
 		ESP_LOGE(TAG, "error tempature param: %f", temp);
-		return;
 	}
 
 	int16_t ingegerpart = 0;
@@ -342,10 +337,6 @@ static void lcd_set_default_display(void)
 	data = ht1621_get_buffer(4) | 0x01;
 	ht1621_set_buffer(4, data);
 
-	// addr 5, default set house tempature 
-	data = ht1621_get_buffer(5) | 0x04;
-	ht1621_set_buffer(5, data);
-
 	// addr 16, default set wind logo
 	data = ht1621_get_buffer(16) | 0x20;
 	ht1621_set_buffer(16, data);
@@ -375,9 +366,4 @@ int lcd_init(void)
 	lcd_set_default_display();
 
 	return 0;
-}
-
-void lcd_display(void)
-{
-	ht1621_display();
 }

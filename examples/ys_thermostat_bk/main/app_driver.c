@@ -1,5 +1,5 @@
-/* Switch demo implementation using button and RGB LED
-   
+/* Fan demo implementation using button and RGB LED
+
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
    Unless required by applicable law or agreed to in writing, this
@@ -31,7 +31,7 @@
 #define BUTTON_ACTIVE_LEVEL  0
 
 #define WIFI_RESET_BUTTON_TIMEOUT       3
-#define FACTORY_RESET_BUTTON_TIMEOUT    5
+#define FACTORY_RESET_BUTTON_TIMEOUT    6
 
 #define TEMPERATURE_SETPOINT_MAX        40
 #define TEMPERATURE_SETPOINT_MIN        0
@@ -74,7 +74,7 @@ esp_err_t app_thermostat_set_setpoint_temperature(float setpoint_temp)
     g_thermostat_params.setpoint_temp = setpoint_temp;
 
     if(g_thermostat_params.setpoint_blink_timer) {
-        ESP_LOGD(TAG, "set-temp blink timer start");
+        ESP_LOGW(TAG, "blink timer start");
         g_thermostat_params.setpoint_blink_cnt = 10;
         if(xTimerStart(g_thermostat_params.setpoint_blink_timer, 0) != pdTRUE) {
             ESP_LOGE(TAG, "start setpoint blink timer error");
@@ -115,21 +115,21 @@ float app_thermostat_get_current_temperature_and_time(void)
 #else
     float local_temp = app_adc_temperature_read();
 #endif
+    g_thermostat_params.local_temp = local_temp;
 
-    uint uiTemp = (uint)(local_temp * 10);
-    g_thermostat_params.local_temp = (float)uiTemp / 10;
-
-    return g_thermostat_params.local_temp;
+    return local_temp;
 }
 
 void app_thermostat_lcd_update(bool beep)
 {
     if (g_thermostat_params.display) {
         if(g_thermostat_params.setpoint_blink_cnt) {
-            lcd_set_house_state(0);
-            lcd_set_temperature(g_thermostat_params.setpoint_temp);
+            if(g_thermostat_params.setpoint_blink_cnt % 2) {
+                lcd_clear_temperature();
+            } else {
+                lcd_set_temperature(g_thermostat_params.setpoint_temp);
+            }
         } else {
-            lcd_set_house_state(1);
             lcd_set_temperature(g_thermostat_params.local_temp);
         }
         lcd_update();
@@ -168,8 +168,8 @@ static void setpoint_blink_callback( TimerHandle_t pxTimer )
     if(!g_thermostat_params.setpoint_blink_cnt) {
         // Do not use a block time if calling a timer API function from a
         // timer callback function, as doing so could cause a deadlock!
-        ESP_LOGD(TAG, "set-temp blink timer stop");
-        xTimerStop(pxTimer, portMAX_DELAY);
+        ESP_LOGD(TAG, "blink timer stop");
+        xTimerStop( pxTimer, 0 );
         esp_rmaker_param_update_and_report(
                 esp_rmaker_device_get_param_by_name(thermostat_device, ESP_RMAKER_DEF_SETPOINT_TEMPERATURE_NAME),
                 esp_rmaker_float(g_thermostat_params.setpoint_temp));
@@ -221,98 +221,27 @@ void button_init(void)
     }
 }
 
-typedef enum {
-    E_TOUCHPAD_TIME         = 0,
-    E_TOUCHPAD_DOWN         = 4,
-    E_TOUCHPAD_UP           = 5,
-    E_TOUCHPAD_SPEED        = 6,
-    E_TOUCHPAD_MODE         = 8,
-    E_TOUCHPAD_POWER        = 9,
-} TOUCHPAD_NUM_E;
-
-static const char* get_key_str(uint8_t num)
+static void tp_press_long_3s_handle(uint8_t num)
 {
     switch(num){
-        case E_TOUCHPAD_POWER: // key power
-            return "power";
-        case E_TOUCHPAD_MODE: // key mode
-            return "mode";
-        case E_TOUCHPAD_TIME: // key time
-            return "time";
-        case E_TOUCHPAD_SPEED: // key speed
-            return "speed";
-        case E_TOUCHPAD_UP: // key up
-            return "up";
-        case E_TOUCHPAD_DOWN: // key down
-            return "down";
+        case 0: // key power
+            break;
+        case 4: // key mode
+            break;
+        case 5: // key time
+            break;
+        case 6: // key speed
+            break;
+        case 8: // key up
+            break;
+        case 9: // key down
+            break;
         default:
-            return "unknown";
+            break;
     }
 }
 
-#define TOUCHPAD_ONCE_PRESS_TIMEOUT_MS  (600)
-#define TOUCHPAD_LONG_PRESS_TIMEOUT_MS  (5000)
-#define TOUCHPAD_RESET_BLINK_START_MS   TOUCHPAD_ONCE_PRESS_TIMEOUT_MS
-
-static void reset_blink_callback( TimerHandle_t pxTimer )
-{
-    // Optionally do something if the pxTimer parameter is NULL.
-    configASSERT( pxTimer );
-
-    g_thermostat_params.reset_blink_flag = !g_thermostat_params.reset_blink_flag;
-    lcd_set_alarm_state(g_thermostat_params.reset_blink_flag);
-    app_thermostat_lcd_update(0);
-}
-
-static esp_err_t reset_blink_start(void)
-{
-    if(g_thermostat_params.reset_blink_timer) {
-        if (xTimerIsTimerActive(g_thermostat_params.reset_blink_timer) == pdTRUE) {
-            ESP_LOGD(TAG, "reset blink timer is active");
-            return ESP_FAIL;
-        } else {
-            ESP_LOGW(TAG, "reset blink timer start");
-            if(xTimerStart(g_thermostat_params.reset_blink_timer, 0) != pdTRUE) {
-                ESP_LOGE(TAG, "reset blink timer start error");
-                return ESP_FAIL;
-            }
-        }
-    } else {
-        ESP_LOGE(TAG, "reset blink timer not ready");
-        return ESP_FAIL;
-    }
-
-    return ESP_OK;
-}
-
-static esp_err_t reset_blink_stop(void)
-{
-    if (g_thermostat_params.reset_blink_timer) {
-        if (xTimerIsTimerActive(g_thermostat_params.reset_blink_timer) == pdTRUE) {
-            xTimerStop(g_thermostat_params.reset_blink_timer, portMAX_DELAY);
-            ESP_LOGW(TAG, "reset blink timer stop");
-        } else {
-            ESP_LOGD(TAG, "reset blink timer not active");
-            return ESP_FAIL;
-        }
-    } else {
-        ESP_LOGE(TAG, "reset blink timer not ready");
-        return ESP_FAIL;
-    }
-
-    return ESP_OK;
-}
-
-static void tp_press_long_handle(uint8_t num)
-{
-    if (num == E_TOUCHPAD_POWER) {
-        // factory reset here
-        ESP_LOGE(TAG, "!!! factory reset.");
-        factory_reset_trigger(NULL);
-    }
-}
-
-static bool tp_press_once_handle(uint8_t num)
+static void tp_press_once_handle(uint8_t num)
 {
     esp_rmaker_param_t *param = NULL;
     esp_rmaker_param_val_t *val = NULL;
@@ -320,7 +249,7 @@ static bool tp_press_once_handle(uint8_t num)
     bool bOk = false;
     
     switch(num){
-        case E_TOUCHPAD_POWER: {
+        case 0: { // key power
             param = esp_rmaker_device_get_param_by_name(thermostat_device, ESP_RMAKER_DEF_POWER_NAME);
             val = esp_rmaker_param_get_val(param);
             new_val = esp_rmaker_bool(val->val.b);
@@ -335,22 +264,22 @@ static bool tp_press_once_handle(uint8_t num)
             bOk = true;
         }
             break;
-        case E_TOUCHPAD_MODE: {
+        case 4: { // key mode
             param = esp_rmaker_device_get_param_by_name(thermostat_device, ESP_RMAKER_DEF_MODE_CONTROL_NAME);
             val = esp_rmaker_param_get_val(param);
             new_val = esp_rmaker_int(val->val.i);
 
-            if(++new_val.val.i >= E_WORK_MODE_DRY) {
-                new_val.val.i = E_WORK_MODE_COLD;
+            if(++new_val.val.i >= E_WORK_MODE_MAX) {
+                new_val.val.i = 0;
             }
             ESP_LOGI(TAG, "workmode local change to [%s]", get_workmode_str(new_val.val.i));
             lcd_set_work_mode(new_val.val.i);
             bOk = true;
         }
             break;
-        case E_TOUCHPAD_TIME: // key time
+        case 5: // key time
             break;
-        case E_TOUCHPAD_SPEED: { // key speed
+        case 6: { // key speed
             param = esp_rmaker_device_get_param_by_name(thermostat_device, ESP_RMAKER_DEF_SPEED_NAME);
             val = esp_rmaker_param_get_val(param);
             new_val = esp_rmaker_int(val->val.i);
@@ -363,20 +292,16 @@ static bool tp_press_once_handle(uint8_t num)
             bOk = true;
         }
             break;
-        case E_TOUCHPAD_UP: { // key up
+        case 8: { // key up
             float will_set_temp = g_thermostat_params.setpoint_temp;
-            will_set_temp = (will_set_temp + 0.5f >= TEMPERATURE_SETPOINT_MAX) ? TEMPERATURE_SETPOINT_MAX : will_set_temp + 0.5f;
-            ESP_LOGD(TAG, "set-temp local up to [%f]", will_set_temp);
+            will_set_temp = (will_set_temp + 0.1f >= TEMPERATURE_SETPOINT_MAX) ? TEMPERATURE_SETPOINT_MAX : will_set_temp + 0.1f;
             app_thermostat_set_setpoint_temperature(will_set_temp);
-            return true;
         }
             break;
-        case E_TOUCHPAD_DOWN: { // key down
+        case 9: { // key down
             float will_set_temp = g_thermostat_params.setpoint_temp;
-            will_set_temp = (will_set_temp - 0.5f <= TEMPERATURE_SETPOINT_MIN) ? TEMPERATURE_SETPOINT_MIN : will_set_temp - 0.5f;
-            ESP_LOGD(TAG, "set-temp local down to [%f]", will_set_temp);
+            will_set_temp = (will_set_temp - 0.1f <= TEMPERATURE_SETPOINT_MIN) ? TEMPERATURE_SETPOINT_MIN : will_set_temp - 0.1f;
             app_thermostat_set_setpoint_temperature(will_set_temp);
-            return true;
         }
             break;
         default:
@@ -385,53 +310,41 @@ static bool tp_press_once_handle(uint8_t num)
 
     if(bOk){
         esp_rmaker_param_update_and_report(param, new_val);
-    }
-
-    return bOk;
-}
-
-static void tp_press_press_keep_handle(uint8_t num, uint32_t keep_time_ms)
-{
-    if (num == E_TOUCHPAD_POWER) {
-        ESP_LOGD(TAG, "T%d-%s keeptime: %ld", num, get_key_str(num), keep_time_ms);
-        if (keep_time_ms >= TOUCHPAD_LONG_PRESS_TIMEOUT_MS) {
-            if (ESP_OK == reset_blink_stop()) {
-                lcd_set_alarm_state(1);
-                app_thermostat_lcd_update(1);
-                ESP_LOGW(TAG, "Release button to trigger factory reset.");
-            }
-        } else if (keep_time_ms > TOUCHPAD_RESET_BLINK_START_MS) {
-            reset_blink_start();
-        }
+        app_thermostat_lcd_update(1);
     }
 }
 
-static void tp_press_start_handle(uint8_t num)
+static const char* get_key_str(uint8_t num)
 {
-    ESP_LOGI(TAG, "T%d-%s press start", num, get_key_str(num));
+    switch(num){
+        case 0: // key power
+            return "power";
+        case 4: // key mode
+            return "mode";
+        case 5: // key time
+            return "time";
+        case 6: // key speed
+            return "speed";
+        case 8: // key up
+            return "up";
+        case 9: // key down
+            return "down";
+        default:
+            return "unknown";
+    }
 }
 
-static void tp_press_end_handle(uint8_t num, uint32_t press_time_ms)
+static void tp_press_handle(uint8_t num, uint32_t press_time)
 {
-    bool beep = false;
+    ESP_LOGI(TAG, "T%d press %ld ms", num, press_time);
 
-    ESP_LOGI(TAG, "T%d-%s press %ld ms", num, get_key_str(num), press_time_ms);
-
-    if (num == E_TOUCHPAD_POWER) {
-        reset_blink_stop();
-        g_thermostat_params.reset_blink_flag = 0;
-        lcd_set_alarm_state(0);
-    }
-
-    if(press_time_ms <= TOUCHPAD_ONCE_PRESS_TIMEOUT_MS){
+    if(press_time <= 600){
         ESP_LOGI(TAG, "T%d-%s once press", num, get_key_str(num));
-        beep = tp_press_once_handle(num);
-    }else if(press_time_ms >= TOUCHPAD_LONG_PRESS_TIMEOUT_MS){
-        ESP_LOGI(TAG, "T%d-%s long press over %d s", num, get_key_str(num), TOUCHPAD_LONG_PRESS_TIMEOUT_MS / 1000);
-        tp_press_long_handle(num);
+        tp_press_once_handle(num);
+    }else if(press_time >= 3000){
+        ESP_LOGI(TAG, "T%d-%s long press", num, get_key_str(num));
+        tp_press_long_3s_handle(num);
     }
-
-    app_thermostat_lcd_update(beep);
 }
 
 void app_driver_init()
@@ -440,13 +353,7 @@ void app_driver_init()
 
     button_init();
 
-    // create reset blink timer
-    g_thermostat_params.reset_blink_timer = xTimerCreate("reset_blink_tm", (300) / portTICK_PERIOD_MS,
-                            pdTRUE, NULL, reset_blink_callback);
-
     app_touch_pad_cfg_t s_tp_cfg = {0};
-    s_tp_cfg.press_start_cb = tp_press_start_handle;
-    s_tp_cfg.press_end_cb = tp_press_end_handle;
-    s_tp_cfg.press_keep_cb = tp_press_press_keep_handle;
+    s_tp_cfg.press_cb = tp_press_handle;
     app_touch_pad_init(&s_tp_cfg);
 }

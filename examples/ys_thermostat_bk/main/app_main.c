@@ -1,4 +1,4 @@
-/* Switch Example
+/* Fan Example
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
@@ -11,55 +11,34 @@
 #include <inttypes.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <freertos/timers.h>
 #include <esp_log.h>
 #include <esp_event.h>
 #include <nvs_flash.h>
 
 #include <esp_rmaker_core.h>
-#include <esp_rmaker_standard_types.h>
 #include <esp_rmaker_standard_params.h>
 #include <esp_rmaker_standard_devices.h>
+#include <esp_rmaker_standard_types.h> 
 #include <esp_rmaker_schedule.h>
 #include <esp_rmaker_scenes.h>
 #include <esp_rmaker_console.h>
 #include <esp_rmaker_ota.h>
-#include <esp_rmaker_work_queue.h>
-#include <esp_rmaker_mqtt.h>
 
 #include <esp_rmaker_common_events.h>
 
-#include <app_reset.h>
 #include <app_wifi.h>
 #include <app_insights.h>
 
-// #include "app_test.h"
+#include "app_test.h"
 
 #include "app_priv.h"
 
 static const char *TAG = "app_main";
 
 esp_rmaker_device_t *thermostat_device;
+
 static TimerHandle_t temperature_update_timer;
-
-static void app_remove_handler(const char *topic, void *payload, size_t payload_len, void *priv_data)
-{
-    ESP_LOGE(TAG, "!!! factory reset.");
-    factory_reset_trigger(NULL);
-}
-
-static void app_custom_subscribe_cb(void *priv_data)
-{
-    char subscribe_topic[USER_MQTT_TOPIC_BUFFER_SIZE];
-    esp_rmaker_create_mqtt_topic(subscribe_topic, USER_MQTT_TOPIC_BUFFER_SIZE, REMOTE_RESET_TOPIC_SUFFIX, REMOTE_RESET_TOPIC_RULE);
-
-    ESP_LOGI(TAG, "Subscribing to: %s", subscribe_topic);
-    /* First unsubscribe, in case there is a stale subscription */
-    esp_rmaker_mqtt_unsubscribe(subscribe_topic);
-    esp_err_t err = esp_rmaker_mqtt_subscribe(subscribe_topic, app_remove_handler, 1, NULL);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Custom Subscription Error %d", err);
-    }
-}
 
 /* Callback to handle commands received from the RainMaker cloud */
 static esp_err_t write_cb(const esp_rmaker_device_t *device, const esp_rmaker_param_t *param,
@@ -102,6 +81,7 @@ static esp_err_t write_cb(const esp_rmaker_device_t *device, const esp_rmaker_pa
     }
     return ESP_OK;
 }
+
 /* Event handler for catching RainMaker events */
 static void event_handler(void* arg, esp_event_base_t event_base,
                           int32_t event_id, void* event_data)
@@ -251,55 +231,37 @@ void app_main()
     esp_rmaker_config_t rainmaker_cfg = {
         .enable_time_sync = false,
     };
-    esp_rmaker_node_t *node = esp_rmaker_node_init(&rainmaker_cfg, "ESP RainMaker Device", "Switch");
+    esp_rmaker_node_t *node = esp_rmaker_node_init(&rainmaker_cfg, "ESP RainMaker Device", "Thermostat");
     if (!node) {
         ESP_LOGE(TAG, "Could not initialise node. Aborting!!!");
         vTaskDelay(5000/portTICK_PERIOD_MS);
         abort();
     }
 
-    /* Create a Switch device.
-     * You can optionally use the helper API esp_rmaker_switch_device_create() to
-     * avoid writing code for adding the name and power parameters.
+    /* Create a device and add the relevant parameters to it */
+    /** thermostat attribute
+     * 1. power
+     * 2. setpoint temperature
+     * 3. speed
+     * 4. mode
+     * 5. temperature
+     * 6. valve
      */
-    // switch_device = esp_rmaker_device_create("Switch", ESP_RMAKER_DEVICE_SWITCH, NULL);
 #if USE_YS_MQTT_BROKER
-    thermostat_device = esp_rmaker_thermostat_device_create("thermostat", NULL, 1);
+    thermostat_device = esp_rmaker_thermostat_device_create("thermostat", NULL, g_thermostat_params.power_state);
 #else
     thermostat_device = esp_rmaker_thermostat_device_create("Thermostat", NULL, 1);
 #endif
-
-    /* Add the write callback for the device. We aren't registering any read callback yet as
-     * it is for future use.
-     */
     esp_rmaker_device_add_cb(thermostat_device, write_cb, NULL);
-
-    /* Add the standard name parameter (type: esp.param.name), which allows setting a persistent,
-     * user friendly custom name from the phone apps. All devices are recommended to have this
-     * parameter.
-     */
-    /* Add the standard power parameter (type: esp.param.power), which adds a boolean param
-     * with a toggle switch ui-type.
-     */
-    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_setpoint_temperature_param_create(ESP_RMAKER_DEF_SETPOINT_TEMPERATURE_NAME, DEFAULT_SET_TEMP_VALUE));
-    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_speed_param_create(ESP_RMAKER_DEF_SPEED_NAME, (int) DEFAULT_SPEED_MODE));
-    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_mode_param_create(ESP_RMAKER_DEF_MODE_CONTROL_NAME, (int) DEFAULT_WORK_MODE));
+    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_setpoint_temperature_param_create(ESP_RMAKER_DEF_SETPOINT_TEMPERATURE_NAME, 0));
+    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_speed_param_create(ESP_RMAKER_DEF_SPEED_NAME, (int) E_WIND_MODE_AUTO));
+    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_mode_param_create(ESP_RMAKER_DEF_MODE_CONTROL_NAME, (int) E_WORK_MODE_AUTO));
     esp_rmaker_device_add_param(thermostat_device, esp_rmaker_temperature_param_create(ESP_RMAKER_DEF_TEMPERATURE_NAME, app_thermostat_get_current_temperature_and_time()));
-    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_valve_param_create(ESP_RMAKER_DEF_VALVE_NAME, 0));
-
-    /* Assign the power parameter as the primary, so that it can be controlled from the
-     * home screen of the phone apps.
-     */
-    // esp_rmaker_device_assign_primary_param(thermostat_device, power_param);
-
-    /* Add this switch device to the node */
+    esp_rmaker_device_add_param(thermostat_device, esp_rmaker_power_param_create(ESP_RMAKER_DEF_VALVE_NAME, 0));
     esp_rmaker_node_add_device(node, thermostat_device);
 
     /* Enable test */
     // app_test_init();
-    if (esp_rmaker_work_queue_add_task(app_custom_subscribe_cb, NULL) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to queue app custom subscribe task.");
-    }
 
     /* Enable OTA */
     esp_rmaker_ota_enable_default();

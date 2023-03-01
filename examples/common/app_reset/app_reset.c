@@ -13,7 +13,11 @@
 #include <esp_log.h>
 #include <esp_err.h>
 #include <iot_button.h>
+#include <json_generator.h>
 #include <esp_rmaker_utils.h>
+#include <esp_rmaker_core.h>
+#include <esp_rmaker_mqtt.h>
+#include <user_debug_header.h>
 
 static const char *TAG = "app_reset";
 
@@ -30,8 +34,27 @@ static void wifi_reset_indicate(void *arg)
     ESP_LOGI(TAG, "Release button now for Wi-Fi reset. Keep pressed for factory reset.");
 }
 
-static void factory_reset_trigger(void *arg)
+void factory_reset_trigger(void *arg)
 {
+    char publish_payload[200];
+    json_gen_str_t jstr;
+    json_gen_str_start(&jstr, publish_payload, sizeof(publish_payload), NULL, NULL);
+    json_gen_start_object(&jstr);
+    char *node_id = esp_rmaker_get_node_id();
+    json_gen_obj_set_string(&jstr, "node_id", node_id);
+    json_gen_end_object(&jstr);
+    json_gen_str_end(&jstr);
+
+    char publish_topic[USER_MQTT_TOPIC_BUFFER_SIZE];
+    esp_rmaker_create_mqtt_topic(publish_topic, USER_MQTT_TOPIC_BUFFER_SIZE, LOCAL_RESET_TOPIC_SUFFIX, LOCAL_RESET_TOPIC_RULE);
+
+    esp_err_t err = esp_rmaker_mqtt_publish(publish_topic, publish_payload, strlen(publish_payload), RMAKER_MQTT_QOS1, NULL);
+    ESP_LOGI(TAG, "MQTT Publish Topic: %s", publish_topic);
+    ESP_LOGI(TAG, "MQTT Publish: %s", publish_payload);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "MQTT Publish Error %d", err);
+    }
+
     esp_rmaker_factory_reset(RESET_DELAY, REBOOT_DELAY);
 }
 

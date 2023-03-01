@@ -48,7 +48,6 @@ static int _data_p = 0;
 static int _backlight_p = 0;
 static bool _backlight_en = 0;
 static char _buffer[BUFFERSIZE] = {0};
-static unsigned char _battery[3] = {0};
 
 static void wrone(unsigned char addr, unsigned char sdata);
 static void wrclrdata(unsigned char addr, unsigned char sdata);
@@ -81,10 +80,7 @@ esp_err_t digitalWrite(int gpio_num, uint32_t level)
 
 void ht1621_begin(int cs_p,int wr_p,int data_p,int backlight_p)
 {
-	// pinMode(cs_p, OUTPUT);
-	// pinMode(wr_p, OUTPUT);
-	// pinMode(data_p, OUTPUT);
-	// pinMode(backlight_p, OUTPUT);
+	memset(_buffer, 0, BUFFERSIZE);
 
 	//zero-initialize the config structure.
     gpio_config_t io_conf = {};
@@ -112,10 +108,8 @@ void ht1621_begin(int cs_p,int wr_p,int data_p,int backlight_p)
 
 void ht1621_begin_noBacklight(int cs_p,int wr_p,int data_p)
 {
-	// pinMode(cs_p, OUTPUT);
-	// pinMode(wr_p, OUTPUT);
-	// pinMode(data_p, OUTPUT);
-	
+	memset(_buffer, 0, BUFFERSIZE);
+
 	//zero-initialize the config structure.
     gpio_config_t io_conf = {};
     //disable interrupt
@@ -316,11 +310,15 @@ void ht1621_clear(void)
 void update(){ // takes the buffer and puts it straight into the driver
 		// the buffer is backwards with respect to the lcd. could be improved
 
-	// int i = 0;
-
-	// for(i = 0; i < BUFFERSIZE; i++) {
+	// for(int i = 0; i < BUFFERSIZE; i++) {
 	// 	wrone(2 * i, _buffer[BUFFERSIZE - i]);
 	// }
+
+	// printf("[ht1621] _buffer = ");
+	// for(int i = 1; i <= BUFFERSIZE; i++) {
+	// 	printf("%02x ", _buffer[BUFFERSIZE - i]);
+	// }
+	// printf("\n");
 
 	wrone(2, _buffer[16]);
 	wrone(4, _buffer[15]);

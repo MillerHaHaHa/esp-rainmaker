@@ -1,6 +1,22 @@
 {
-    "idf.port": "/dev/ttyUSB0",
     "idf.adapterTargetName": "esp32",
+    "idf.openOcdConfigs": [
+        "interface/ftdi/esp32_devkitj_v1.cfg",
+        "target/esp32.cfg"
+    ],
+    "idf.portWin": "COM14",
+    "files.associations": {
+        "sdkconfig.h": "c",
+        "app_priv.h": "c",
+        "esp_rmaker_client_data.h": "c",
+        "array": "c",
+        "string": "c",
+        "string_view": "c",
+        "random": "c",
+        "freertos.h": "c"
+    },
+    "idf.port": "/dev/ttyUSB0",
+    "idf.flashType": "UART",
 
     // The prefix that is used for each comment line except for first and last.
 
@@ -179,8 +195,4 @@
     // Substitute {email} with git config --get user.email.
 
     "doxdocgen.generic.useGitUserEmail": false,
-    "idf.flashType": "UART",
-    "files.associations": {
-        "app_touch_pad.h": "c"
-    },
 }

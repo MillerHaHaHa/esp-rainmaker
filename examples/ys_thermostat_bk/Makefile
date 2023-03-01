@@ -3,7 +3,7 @@
 # project subdirectory.
 #
 
-PROJECT_NAME := thermostat
+PROJECT_NAME := fan
 PROJECT_VER := 1.0
 
 # Add RainMaker components and other common application components

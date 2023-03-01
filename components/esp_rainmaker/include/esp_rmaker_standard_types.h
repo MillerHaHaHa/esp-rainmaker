@@ -62,7 +62,7 @@ extern "C"
 #define ESP_RMAKER_PARAM_LIGHT_MODE     "esp.param.light-mode"
 #define ESP_RMAKER_PARAM_AC_MODE        "esp.param.ac-mode"
 #define ESP_RMAKER_PARAM_SETPOINT_TEMPERATURE   "esp.param.setpoint-temperature"
-
+#define ESP_RMAKER_PARAM_VALVE          "esp.param.valve"
 
 /********** STANDARD DEVICE TYPES **********/
 
